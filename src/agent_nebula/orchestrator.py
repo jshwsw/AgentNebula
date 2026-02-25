@@ -145,7 +145,6 @@ async def run_single_session(
     prompt: str,
     model: str,
     session_num: int,
-    system_prompt_extra: str = "",
 ) -> tuple[str, ResultMessage | None]:
     """Run a single Claude Code SDK session with full JSONL recording."""
 
@@ -155,7 +154,6 @@ async def run_single_session(
         max_turns=config.workflow.max_turns_per_session,
         permission_mode=config.workflow.permission_mode,
         allowed_tools=config.security.allowed_tools,
-        append_system_prompt=system_prompt_extra if system_prompt_extra else None,
     )
 
     console.print(f"\n[bold cyan]--- Session {session_num} started (model: {model}) ---[/bold cyan]")
@@ -404,7 +402,7 @@ async def run_workflow(
             started_at=time.time(),
         )
 
-        prompt, system_extra = build_worker_prompt(
+        prompt = build_worker_prompt(
             workflow_dir=workflow_dir,
             cwd=cwd,
             config=config,
@@ -418,7 +416,6 @@ async def run_workflow(
             prompt=prompt,
             model=model,
             session_num=session_num,
-            system_prompt_extra=system_extra,
         )
 
         task_list = TaskList(workflow_dir)

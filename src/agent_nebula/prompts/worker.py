@@ -13,12 +13,11 @@ def build_worker_prompt(
     cwd: Path,
     config: ProjectConfig,
     session_num: int,
-) -> tuple[str, str]:
-    """Build worker prompt. Returns (user_prompt, system_prompt_extra).
+) -> str:
+    """Build worker prompt.
 
-    The spec content goes into system_prompt_extra (appended to system prompt)
-    to avoid hitting Windows command line length limits. The user prompt
-    contains only the current session's task and state information.
+    The spec content is NOT included in the prompt (too long for Windows CLI).
+    Instead, the prompt instructs the agent to Read spec.md as its first action.
     """
     task_list_path = workflow_dir / "task_list.json"
     progress_path = workflow_dir / "progress.md"
@@ -138,17 +137,7 @@ After completing the task, you MUST update two files:
 - If a task is too large, note this in progress.md -- the orchestrator will handle replanning
 - If you encounter errors, document them in the task's `notes` field and in progress.md
 - Quality over speed: do the task correctly rather than rushing through it
-- The **Task Execution Guide** is in your system prompt — follow it carefully
+- **FIRST THING**: Read the Task Execution Guide at `{workflow_dir / 'spec.md'}` — it contains critical instructions for how to execute tasks in this workflow
 """
 
-    # Spec goes into system prompt (avoids Windows command line length limits)
-    system_extra = ""
-    if spec_text:
-        system_extra = f"""## Task Execution Guide
-
-You are a Worker Agent in the AgentNebula workflow system. Follow the spec below to execute each task.
-
-{spec_text}
-"""
-
-    return prompt, system_extra
+    return prompt
