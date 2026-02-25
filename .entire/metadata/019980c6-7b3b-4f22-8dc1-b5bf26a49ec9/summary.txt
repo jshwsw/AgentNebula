@@ -1,10 +1,15 @@
-Dashboard 正常运行，Agent 正在后台执行 T002（GSLogScriptData 文档生成）。整个系统验证成功：
+清理完成。现在的架构职责分离是：
 
-- Orchestrator 循环正常启动
-- Claude SDK session 正常连接和执行
-- Dashboard 实时更新（WORKING 状态、当前任务、Live Log）
-- JSONL 消息记录正常写入
-- 任务弹窗显示完整元数据
-- "Watch Live Agent Session" 链接可用
+```
+AgentNebula (通用框架)                   .agent-nebula/ (任务特定)
+├── orchestrator.py  → 循环调度           ├── config.yaml    → 项目配置
+├── worker.py        → 通用 prompt        ├── spec.md        → 怎么执行任务 ← 这里！
+├── dashboard.py     → 监控面板           ├── task_list.json → 任务清单
+├── tasks.py         → 任务管理           ├── tools/         → 任务特定工具
+└── ...                                   │   └── extract_script_usage.py
+                                          └── ...
+```
 
-Session 3 正在运行中，完成后会自动把 T002 标记为 `passes: true` 并停止（因为 max_sessions=1）。你可以在 `http://localhost:8765` 继续观察进度。
+**关键改动**：worker prompt 现在会把 `spec.md` 的完整内容注入到末尾，作为 "Task Execution Guide"。所有关于"怎么执行具体任务"的指令都写在 spec.md 里——不同项目有不同的 spec，AgentNebula 框架本身完全不知道也不需要知道具体任务是什么。
+
+T002 已重置为 `passes: false`，spec.md 已更新了详细的执行步骤（使用 ScriptUsageLookup 而非 full.json）。你随时可以重启工作流来重跑 T002。

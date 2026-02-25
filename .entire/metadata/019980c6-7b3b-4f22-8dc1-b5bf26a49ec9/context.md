@@ -1,7 +1,7 @@
 # Session Context
 
 Session ID: 019980c6-7b3b-4f22-8dc1-b5bf26a49ec9
-Commit Message: 那我们来测试吧, titusedtior这个任务
+Commit Message: 按理说extract_script_usage不应该出现在AgentNebula这个git代码库里, 因为这个显然是针对tituseditor这
 
 ## Prompts
 
@@ -161,15 +161,42 @@ Read the output file to retrieve the result: C:\Users\shouhui.jin\AppData\Local\
 
 那我们来测试吧, titusedtior这个任务
 
+### Prompt 22
+
+如果我想让这个task list一直执行下去, 是不是max_sessions得赋值无限
+
+### Prompt 23
+
+1. GSLogScriptData_Analysis.md生成了, 但是内容不够详实. 我猜测是因为role_6xxxx_analysis.json这些角色技能太大了, 冗余信息非常多都是空帧数据, 导致agent根本读不完, 理解不了重要信息
+
+2. 我想确认一下, 在生成xx_Analysis.md的过程中, 执行任务的agent有没有完整阅读原始的脚本的c++源码, 有没有阅读600xx这些角色对该脚本的使用案例, 阅读角色对该脚本和其他脚本的组合案例, 等等信息. 只有完整理解的脚本的原始代码和应用案例, 才能写出准确的xx_Analysis.md
+
+3. 我想重新执行T002, 你把T002的passes改成false, 重新来过吧, 我对比下前后GSLogScriptData_Analysis的差异
+
+### Prompt 24
+
+[Request interrupted by user]
+
+### Prompt 25
+
+按理说extract_script_usage不应该出现在AgentNebula这个git代码库里, 因为这个显然是针对tituseditor这个任务特定的一个脚本工具
+
+此外, AgentNebula的src里也不应该出现tituseditor相关的内容, 具体如何执行某个task应该是不同工程自己管理的, 你只需要在AgentNebula的工作流里写清楚如何生成task, 以及每个task应该如何执行就好了
+
 ## Summary
 
-Dashboard 正常运行，Agent 正在后台执行 T002（GSLogScriptData 文档生成）。整个系统验证成功：
+清理完成。现在的架构职责分离是：
 
-- Orchestrator 循环正常启动
-- Claude SDK session 正常连接和执行
-- Dashboard 实时更新（WORKING 状态、当前任务、Live Log）
-- JSONL 消息记录正常写入
-- 任务弹窗显示完整元数据
-- "Watch Live Agent Session" 链接可用
+```
+AgentNebula (通用框架)                   .agent-nebula/ (任务特定)
+├── orchestrator.py  → 循环调度           ├── config.yaml    → 项目配置
+├── worker.py        → 通用 prompt        ├── spec.md        → 怎么执行任务 ← 这里！
+├── dashboard.py     → 监控面板           ├── task_list.json → 任务清单
+├── tasks.py         → 任务管理           ├── tools/         → 任务特定工具
+└── ...                                   │   └── extract_script_usage.py
+                                          └── ...
+```
 
-Session 3 正在运行中，完成后会自动把 T002 标记为 `passes: true` 并停止（因为 max_sessions=1）。你可以在 `http://localhost:8765` 继续观察进度。
+**关键改动**：worker prompt 现在会把 `spec.md` 的完整内容注入到末尾，作为 "Task Execution Guide"。所有关于"怎么执行具体任务"的指令都写在 spec.md 里——不同项目有不同的 spec，AgentNebula 框架本身完全不知道也不需要知道具体任务是什么。
+
+T002 已重置为 `passes: false`，spec.md 已更新了详细的执行步骤（使用 ScriptUsageLookup 而非 full.json）。你随时可以重启工作流来重跑 T002。

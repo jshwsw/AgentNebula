@@ -151,3 +151,25 @@ Read the output file to retrieve the result: C:\Users\shouhui.jin\AppData\Local\
 ---
 
 那我们来测试吧, titusedtior这个任务
+
+---
+
+如果我想让这个task list一直执行下去, 是不是max_sessions得赋值无限
+
+---
+
+1. GSLogScriptData_Analysis.md生成了, 但是内容不够详实. 我猜测是因为role_6xxxx_analysis.json这些角色技能太大了, 冗余信息非常多都是空帧数据, 导致agent根本读不完, 理解不了重要信息
+
+2. 我想确认一下, 在生成xx_Analysis.md的过程中, 执行任务的agent有没有完整阅读原始的脚本的c++源码, 有没有阅读600xx这些角色对该脚本的使用案例, 阅读角色对该脚本和其他脚本的组合案例, 等等信息. 只有完整理解的脚本的原始代码和应用案例, 才能写出准确的xx_Analysis.md
+
+3. 我想重新执行T002, 你把T002的passes改成false, 重新来过吧, 我对比下前后GSLogScriptData_Analysis的差异
+
+---
+
+[Request interrupted by user]
+
+---
+
+按理说extract_script_usage不应该出现在AgentNebula这个git代码库里, 因为这个显然是针对tituseditor这个任务特定的一个脚本工具
+
+此外, AgentNebula的src里也不应该出现tituseditor相关的内容, 具体如何执行某个task应该是不同工程自己管理的, 你只需要在AgentNebula的工作流里写清楚如何生成task, 以及每个task应该如何执行就好了
