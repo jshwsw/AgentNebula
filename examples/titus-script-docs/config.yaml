@@ -1,0 +1,28 @@
+project:
+  name: TitusEditor-ScriptDocs
+  type: generic
+  tech_stack: []
+  cwd: C:\Work\ProjAI\Claude_Sango
+workflow:
+  model_complex: claude-opus-4-6[1m]
+  model_simple: claude-sonnet-4-6[1m]
+  max_sessions: 1
+  session_delay_seconds: 3
+  auto_commit: true
+  max_turns_per_session: 200
+  permission_mode: acceptEdits
+security:
+  sandbox_to_project: true
+  allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Bash
+  - Task
+  - TodoWrite
+verification:
+  strategy: auto
+  test_command: ''
+  build_command: ''

@@ -152,8 +152,6 @@ Click any task card to see full details:
 
 Each session's full agent conversation is recorded as JSONL and viewable at `/session/{num}`:
 
-![Session Detail](docs/images/session-detail.png)
-
 - **Message stream**: Every assistant message, tool call, tool result, and thinking block
 - **Color-coded roles**: Assistant (blue), User/tool results (purple), System (gray), Result (green)
 - **Tool calls**: Expandable blocks showing tool name and input parameters
@@ -255,8 +253,18 @@ AgentNebula/
 │   ├── QUICKSTART.md        # Setup and usage guide
 │   ├── TASK_FORMAT.md       # task_list.json field reference
 │   └── templates/           # Config, spec, and task list templates
+├── examples/
+│   └── titus-script-docs/   # Real-world example: 152-task documentation workflow
 └── pyproject.toml
 ```
+
+## Examples
+
+See [examples/titus-script-docs/](examples/titus-script-docs/) for a real-world workflow that generates documentation for 150+ game engine script types. It demonstrates:
+- Detailed `spec.md` with per-section quality requirements
+- Workflow-local tools (`extract_script_usage.py`)
+- Complete handoff document for agent continuity
+- Task list with metadata (source paths, usage data)
 
 ## Requirements
 

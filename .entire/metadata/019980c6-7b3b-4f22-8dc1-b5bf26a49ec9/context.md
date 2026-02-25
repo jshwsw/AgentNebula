@@ -1,8 +1,7 @@
 # Session Context
 
 Session ID: 019980c6-7b3b-4f22-8dc1-b5bf26a49ec9
-Commit Message: 1. 能不能给我提供一个停掉当前AgentNebula任务的脚本
-2. 所有的task是否完成都是在task_list.json的passes标
+Commit Message: [Image: original 3831x2111, displayed at 2000x1102. Multiply coordinates
 
 ## Prompts
 
@@ -238,17 +237,86 @@ ERROR:    [Errno 10048] error while attempting to bind on address ('0.0.0.0', 87
 1. 能不能给我提供一个停掉当前AgentNebula任务的脚本
 2. 所有的task是否完成都是在task_list.json的passes标记的对吧, 那么progress文档的含义是什么?
 
+### Prompt 36
+
+帮我更新一下progress文档吧, 我想从T002重新开始
+
+### Prompt 37
+
+执行任务的agent经常报这个错:
+
+[Error] File content (29509 tokens) exceeds maximum allowed tokens (25000). Please use offset and limit parameters to read
+specific portions of the file, or use the GrepTool to search for specific content.
+
+有没有办法规避25000的限制? 我希望agent能完整读完文件内容
+
+### Prompt 38
+
+http://localhost:8765/session/4
+这个agent卡死了, 什么原因? 不往下进行了, 也没完成, 始终是In Progress状态
+
+### Prompt 39
+
+[Request interrupted by user for tool use]
+
+### Prompt 40
+
+✅ Result (toolu_vrtx_01S3BRWKsEQvdaJDxfdz6ftx)
+     1→# GSLogScriptData Quick Reference
+     2→
+     3→**Script类型**: GSLogScriptData
+     4→**用途**: 调试日志输出（仅Editor模式生效，技能阶段标注、分支验证、流程追踪）
+     5→**使用频率**: 高频（191次/6角色）
+     6→**版本**: v1.0 | 2026-02-25
+     7→
+     8→---
+     9→
+
+执行GSLogScriptData的agent说一共使用了191次, 应该是错的, 191是全部上下文脚本的数量吧? 你看看ScriptUsageLookup/GSLogScriptData下边的文件
+
+### Prompt 41
+
+感觉总体上这一批agent生成的xx_Analysis.md文档内容偏简单, 能分析分析为什么吗, 是不是因为extract_script_usage.py之后的信息太少了? 你可以对比一下之前p0,p1,p2的xx_Analysis.md文档, 看差在哪
+
+### Prompt 42
+
+C:\Work\ProjAI\Claude_Sango\Code\Titus\Content\App\Data\App\Entity\Role下边还有60011到60022的角色数据, 要不你也生成一下ExistSkillObjRef
+
+### Prompt 43
+
+你整理两处的文档吧, 存个档, 保证换下一个agent还能无缝继续开发AgentNebula和对应的tituseditor-script这个项目
+1. 更新AgentNebula的README, 加入dashboard的使用方法和截图
+2. 在本工程的.agent-nebula的目录下创建一个完整的可以用来指导下一个agent理解tituseditor和本.agent-nebula任务的文档, 包括 titus editor本身的重要知识和文档目录, 开发过程中间你用过的很多工具, 比如:
+2.1 ExistSkillObjRef相关的, 怎么把角色原始的kfdata数据导出成json, 怎么生成_analysis.json和_full.json
+2.2 titus editor的DataGeneration_AI目录结构, 是根据什么生成出xx_Analysis.md文档的
+2.3 本.agent-nebula的spec是怎么设计的, 解决了哪些问题
+以及其他你认为必要的知识和重要上下文信息, 保证下一个agent能无缝接力你的工作
+
+### Prompt 44
+
+[Image: original 3831x2111, displayed at 2000x1102. Multiply coordinates by 1.92 to map to original image.]
+
 ## Summary
 
-现在 tools/ 里有三个脚本：
+完成。两份文档已创建：
 
-```bash
-# 初始化
-python Code/AgentNebula/tools/setup_workflow.py .
+### 1. AgentNebula README 更新
+- Dashboard 详细使用指南：Main View、Task Detail Popup、Session Detail Page
+- CLI 命令参考（run/stop/port）
+- 截图位置预留（`docs/images/`）
 
-# 启动（自动清理旧进程）
-python Code/AgentNebula/tools/run_workflow.py .
+### 2. `.agent-nebula/HANDOFF.md` — 完整交接手册
 
-# 停止
-python Code/AgentNebula/tools/stop_workflow.py
-```
+7 个章节覆盖所有关键知识：
+
+| 章节 | 内容 |
+|------|------|
+| 1. Project Overview | 任务目标、当前进度、两个代码库的关系 |
+| 2. AgentNebula Architecture | 核心文件、设计决策、已知问题与解决方案 |
+| 3. TitusEditor Knowledge | 引擎脚本系统、C++ 源码位置、已有文档目录 |
+| 4. Role Data Pipeline | analyze_role.py 用法、ExistSkillObjRef 结构、extract_script_usage.py |
+| 5. Workflow Spec Design | spec.md 的演进历史——解决了哪些问题（大文件、质量不足、usage 计数、Windows 限制） |
+| 6. How to Continue | 继续运行工作流、添加角色数据、改进框架的具体命令 |
+| 7. File Map | 完整的目录树，标注每个文件/目录的用途 |
+
+下一个 agent 读完这份文档就能无缝接力。

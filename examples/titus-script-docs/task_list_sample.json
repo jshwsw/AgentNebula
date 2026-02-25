@@ -1,0 +1,157 @@
+{
+  "tasks": [
+    {
+      "id": "T001",
+      "category": "generation",
+      "priority": 0,
+      "description": "Create p3 output directories for new script documentation",
+      "acceptance_criteria": [
+        "Directory Code/TitusEditor/docs/DataGeneration_AI/PreLearning/ScriptReadme/p3/ exists",
+        "Directory .claude/skills/slash-tituseditor-skill-generator/ScriptReference/p3/ exists",
+        "Verify existing p0/p1/p2 directories are untouched"
+      ],
+      "dependencies": [],
+      "passes": true,
+      "session_attempted": 2,
+      "notes": "Completed. Both p3 directories created successfully. Existing p0/p1/p2 directories verified untouched.",
+      "metadata": {}
+    },
+    {
+      "id": "T002",
+      "category": "docs",
+      "priority": 0,
+      "description": "Generate Analysis and Reference documentation for GSLogScriptData",
+      "acceptance_criteria": [
+        "GSLogScriptData_Analysis.md created in Code/TitusEditor/docs/DataGeneration_AI/PreLearning/ScriptReadme/p3/ with all 10 required sections",
+        "GSLogScriptData_Reference.md created in .claude/skills/slash-tituseditor-skill-generator/ScriptReference/p3/ with all 6 required sections",
+        "Analysis doc is 800-2500 lines, Reference doc is 200-500 lines",
+        "All KFD attributes documented with types, defaults, and enums",
+        "Real usage examples from ExistSkillObjRef data included (if available)",
+        "Document written in Chinese following existing p0/p1/p2 format"
+      ],
+      "dependencies": [
+        "T001"
+      ],
+      "passes": false,
+      "session_attempted": null,
+      "notes": "",
+      "metadata": {
+        "script_name": "GSLogScriptData",
+        "source_header": "Code/Titus/Plugins/Kungfu8/Source/Kungfu8/ATGS/Script/Global/GSLogScript.h",
+        "source_impl": "Code/Titus/Plugins/Kungfu8/Source/Kungfu8/ATGS/Script/Global/GSLogScript.cpp",
+        "output_analysis": "Code/TitusEditor/docs/DataGeneration_AI/PreLearning/ScriptReadme/p3/GSLogScriptData_Analysis.md",
+        "output_reference": ".claude/skills/slash-tituseditor-skill-generator/ScriptReference/p3/GSLogScriptData_Reference.md",
+        "usage_count": 17,
+        "usage_roles": [
+          "60001",
+          "60002",
+          "60004",
+          "60006",
+          "60007",
+          "60008"
+        ]
+      }
+    },
+    {
+      "id": "T003",
+      "category": "docs",
+      "priority": 0,
+      "description": "Generate Analysis and Reference documentation for GSSetAnimationAimModeData",
+      "acceptance_criteria": [
+        "GSSetAnimationAimModeData_Analysis.md created in Code/TitusEditor/docs/DataGeneration_AI/PreLearning/ScriptReadme/p3/ with all 10 required sections",
+        "GSSetAnimationAimModeData_Reference.md created in .claude/skills/slash-tituseditor-skill-generator/ScriptReference/p3/ with all 6 required sections",
+        "Analysis doc is 800-2500 lines, Reference doc is 200-500 lines",
+        "All KFD attributes documented with types, defaults, and enums",
+        "Real usage examples from ExistSkillObjRef data included (if available)",
+        "Document written in Chinese following existing p0/p1/p2 format"
+      ],
+      "dependencies": [
+        "T001"
+      ],
+      "passes": false,
+      "session_attempted": null,
+      "notes": "",
+      "metadata": {
+        "script_name": "GSSetAnimationAimModeData",
+        "source_header": "Code/Titus/Plugins/Kungfu8/Source/kf8GamePlay/Script/Global/GSSetAnimationAimMode.h",
+        "source_impl": "Code/Titus/Plugins/Kungfu8/Source/kf8GamePlay/Script/Global/GSSetAnimationAimMode.cpp",
+        "output_analysis": "Code/TitusEditor/docs/DataGeneration_AI/PreLearning/ScriptReadme/p3/GSSetAnimationAimModeData_Analysis.md",
+        "output_reference": ".claude/skills/slash-tituseditor-skill-generator/ScriptReference/p3/GSSetAnimationAimModeData_Reference.md",
+        "usage_count": 13,
+        "usage_roles": [
+          "60001",
+          "60004",
+          "60006",
+          "60007",
+          "60008"
+        ]
+      }
+    },
+    {
+      "id": "T004",
+      "category": "docs",
+      "priority": 0,
+      "description": "Generate Analysis and Reference documentation for TSPlayCameraScreenEffectData",
+      "acceptance_criteria": [
+        "TSPlayCameraScreenEffectData_Analysis.md created in Code/TitusEditor/docs/DataGeneration_AI/PreLearning/ScriptReadme/p3/ with all 10 required sections",
+        "TSPlayCameraScreenEffectData_Reference.md created in .claude/skills/slash-tituseditor-skill-generator/ScriptReference/p3/ with all 6 required sections",
+        "Analysis doc is 800-2500 lines, Reference doc is 200-500 lines",
+        "All KFD attributes documented with types, defaults, and enums",
+        "Real usage examples from ExistSkillObjRef data included (if available)",
+        "Document written in Chinese following existing p0/p1/p2 format"
+      ],
+      "dependencies": [
+        "T001"
+      ],
+      "passes": false,
+      "session_attempted": null,
+      "notes": "",
+      "metadata": {
+        "script_name": "TSPlayCameraScreenEffectData",
+        "source_header": "Code/Titus/Plugins/Kungfu8/Source/kf8GamePlay/Script/Target/TSPlayCameraScreenEffect.h",
+        "source_impl": "Code/Titus/Plugins/Kungfu8/Source/kf8GamePlay/Script/Target/TSPlayCameraScreenEffect.cpp",
+        "output_analysis": "Code/TitusEditor/docs/DataGeneration_AI/PreLearning/ScriptReadme/p3/TSPlayCameraScreenEffectData_Analysis.md",
+        "output_reference": ".claude/skills/slash-tituseditor-skill-generator/ScriptReference/p3/TSPlayCameraScreenEffectData_Reference.md",
+        "usage_count": 13,
+        "usage_roles": [
+          "60004",
+          "60009"
+        ]
+      }
+    },
+    {
+      "id": "T005",
+      "category": "docs",
+      "priority": 0,
+      "description": "Generate Analysis and Reference documentation for GSAccessoryOperationData",
+      "acceptance_criteria": [
+        "GSAccessoryOperationData_Analysis.md created in Code/TitusEditor/docs/DataGeneration_AI/PreLearning/ScriptReadme/p3/ with all 10 required sections",
+        "GSAccessoryOperationData_Reference.md created in .claude/skills/slash-tituseditor-skill-generator/ScriptReference/p3/ with all 6 required sections",
+        "Analysis doc is 800-2500 lines, Reference doc is 200-500 lines",
+        "All KFD attributes documented with types, defaults, and enums",
+        "Real usage examples from ExistSkillObjRef data included (if available)",
+        "Document written in Chinese following existing p0/p1/p2 format"
+      ],
+      "dependencies": [
+        "T001"
+      ],
+      "passes": false,
+      "session_attempted": null,
+      "notes": "",
+      "metadata": {
+        "script_name": "GSAccessoryOperationData",
+        "source_header": "Code/Titus/Plugins/Kungfu8/Source/kf8GamePlay/Script/Global/GSAccessoryOperation.h",
+        "source_impl": "Code/Titus/Plugins/Kungfu8/Source/kf8GamePlay/Script/Global/GSAccessoryOperation.cpp",
+        "output_analysis": "Code/TitusEditor/docs/DataGeneration_AI/PreLearning/ScriptReadme/p3/GSAccessoryOperationData_Analysis.md",
+        "output_reference": ".claude/skills/slash-tituseditor-skill-generator/ScriptReference/p3/GSAccessoryOperationData_Reference.md",
+        "usage_count": 9,
+        "usage_roles": [
+          "60001",
+          "60004",
+          "60006",
+          "60009"
+        ]
+      }
+    }
+  ]
+}
