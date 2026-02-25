@@ -1,7 +1,7 @@
 # Session Context
 
 Session ID: 019980c6-7b3b-4f22-8dc1-b5bf26a49ec9
-Commit Message: 按理说extract_script_usage不应该出现在AgentNebula这个git代码库里, 因为这个显然是针对tituseditor这
+Commit Message: 我要测试直接执行run_workflow.py就行了对吧
 
 ## Prompts
 
@@ -183,20 +183,44 @@ Read the output file to retrieve the result: C:\Users\shouhui.jin\AppData\Local\
 
 此外, AgentNebula的src里也不应该出现tituseditor相关的内容, 具体如何执行某个task应该是不同工程自己管理的, 你只需要在AgentNebula的工作流里写清楚如何生成task, 以及每个task应该如何执行就好了
 
+### Prompt 26
+
+1. extract_script_usage是在哪里要用的? 我没看到你有任何文档提到应该怎么使用这个脚本, 按理说这个脚本工具是从某个角色的role_60xxx_analysis.json里截取需要查询的脚步行为的配置信息包括上下文组合信息的, 我的理解对吗?
+
+2. 60001缺少role_60001_analysis.json, 补一个吧
+
+### Prompt 27
+
+extract_script_usage这个工具是不是应该写在spec文档里, 按照我的理解spec文档是教会agent如何执行当前的某一个task的, 对吗
+
+### Prompt 28
+
+但是我并不想手动执行extract_script_usage, 脚本太多了, 应该是每个子task的agent一开始根据自己处理的脚本, 作为参数去执行extract_script_usage来生成所有ExistSkillObjRef的脚本使用信息, 并全部读取作为学习案例
+
+### Prompt 29
+
+2. Then read the generated file: `Code/TitusEditor/docs/DataGeneration_AI/Workflow/ExistSkillObjRef/ScriptUsageLookup/<ScriptName>.json`
+
+这一步, 我想确认你是怎么保证执行了ExistSkillObjRef下边所有角色的, 我觉得应该按照角色来汇总, 还是放在ScriptUsageLookup下边没有问题, 但建一个子文件夹叫<ScriptName>, 在里边根据每个角色的数据生成60xxx_<ScriptName>.json, 然后让这个agent读取全部的信息
+
+此外, 我希望你能保证extract_script_usage脚本生成了足够准确和详细的汇总信息, 包括这个脚本使用了多少次, 上下文常见的组合是什么, 参数组合是什么
+
+### Prompt 30
+
+spec.md你得更新到最新工作流, 里边还是老的读取ScriptUsageLookup的方式, 需要强调让agent完整读取所有角色的ScriptUsageLookup
+
+### Prompt 31
+
+extract_script_usage.py还需求再加强一些, 目前大概只截取了使用的制定脚本的一点上下文, 对于某些复杂脚本这样不够用, 我建议截取前后2-3帧完整的数据作为上下文信息, 让agent理解一般的常用脚本组合
+
+### Prompt 32
+
+我要测试直接执行run_workflow.py就行了对吧
+
 ## Summary
 
-清理完成。现在的架构职责分离是：
+Session 4 正在执行，已有 12 条消息。工作流启动成功了。
 
-```
-AgentNebula (通用框架)                   .agent-nebula/ (任务特定)
-├── orchestrator.py  → 循环调度           ├── config.yaml    → 项目配置
-├── worker.py        → 通用 prompt        ├── spec.md        → 怎么执行任务 ← 这里！
-├── dashboard.py     → 监控面板           ├── task_list.json → 任务清单
-├── tasks.py         → 任务管理           ├── tools/         → 任务特定工具
-└── ...                                   │   └── extract_script_usage.py
-                                          └── ...
-```
+修复方案很简单：**不把 spec 内容塞进命令行参数或 prompt，而是让 agent 自己去读 `spec.md` 文件**。Prompt 里只有一行指令："FIRST THING: Read the Task Execution Guide at `<path>/spec.md`"。这样 prompt 很短，不会触发 Windows 32KB 限制。
 
-**关键改动**：worker prompt 现在会把 `spec.md` 的完整内容注入到末尾，作为 "Task Execution Guide"。所有关于"怎么执行具体任务"的指令都写在 spec.md 里——不同项目有不同的 spec，AgentNebula 框架本身完全不知道也不需要知道具体任务是什么。
-
-T002 已重置为 `passes: false`，spec.md 已更新了详细的执行步骤（使用 ScriptUsageLookup 而非 full.json）。你随时可以重启工作流来重跑 T002。
+你可以在 `http://localhost:8765` 监控进度。

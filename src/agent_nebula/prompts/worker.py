@@ -66,6 +66,8 @@ def build_worker_prompt(
 
     prompt = f"""You are the **Worker Agent** for the AgentNebula workflow system, Session #{session_num}.
 
+**IMPORTANT: Before doing anything else, Read the file `{workflow_dir / 'spec.md'}` — it contains the Task Execution Guide with step-by-step instructions for how to execute tasks in this workflow. You MUST follow it.**
+
 ## Directory Layout
 - **Working directory (cwd)**: {cwd}
   This is where you read/write project files.
@@ -137,7 +139,6 @@ After completing the task, you MUST update two files:
 - If a task is too large, note this in progress.md -- the orchestrator will handle replanning
 - If you encounter errors, document them in the task's `notes` field and in progress.md
 - Quality over speed: do the task correctly rather than rushing through it
-- **FIRST THING**: Read the Task Execution Guide at `{workflow_dir / 'spec.md'}` — it contains critical instructions for how to execute tasks in this workflow
 """
 
     return prompt

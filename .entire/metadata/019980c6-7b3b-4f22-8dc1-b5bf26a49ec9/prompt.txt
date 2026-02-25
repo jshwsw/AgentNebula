@@ -173,3 +173,37 @@ Read the output file to retrieve the result: C:\Users\shouhui.jin\AppData\Local\
 按理说extract_script_usage不应该出现在AgentNebula这个git代码库里, 因为这个显然是针对tituseditor这个任务特定的一个脚本工具
 
 此外, AgentNebula的src里也不应该出现tituseditor相关的内容, 具体如何执行某个task应该是不同工程自己管理的, 你只需要在AgentNebula的工作流里写清楚如何生成task, 以及每个task应该如何执行就好了
+
+---
+
+1. extract_script_usage是在哪里要用的? 我没看到你有任何文档提到应该怎么使用这个脚本, 按理说这个脚本工具是从某个角色的role_60xxx_analysis.json里截取需要查询的脚步行为的配置信息包括上下文组合信息的, 我的理解对吗?
+
+2. 60001缺少role_60001_analysis.json, 补一个吧
+
+---
+
+extract_script_usage这个工具是不是应该写在spec文档里, 按照我的理解spec文档是教会agent如何执行当前的某一个task的, 对吗
+
+---
+
+但是我并不想手动执行extract_script_usage, 脚本太多了, 应该是每个子task的agent一开始根据自己处理的脚本, 作为参数去执行extract_script_usage来生成所有ExistSkillObjRef的脚本使用信息, 并全部读取作为学习案例
+
+---
+
+2. Then read the generated file: `Code/TitusEditor/docs/DataGeneration_AI/Workflow/ExistSkillObjRef/ScriptUsageLookup/<ScriptName>.json`
+
+这一步, 我想确认你是怎么保证执行了ExistSkillObjRef下边所有角色的, 我觉得应该按照角色来汇总, 还是放在ScriptUsageLookup下边没有问题, 但建一个子文件夹叫<ScriptName>, 在里边根据每个角色的数据生成60xxx_<ScriptName>.json, 然后让这个agent读取全部的信息
+
+此外, 我希望你能保证extract_script_usage脚本生成了足够准确和详细的汇总信息, 包括这个脚本使用了多少次, 上下文常见的组合是什么, 参数组合是什么
+
+---
+
+spec.md你得更新到最新工作流, 里边还是老的读取ScriptUsageLookup的方式, 需要强调让agent完整读取所有角色的ScriptUsageLookup
+
+---
+
+extract_script_usage.py还需求再加强一些, 目前大概只截取了使用的制定脚本的一点上下文, 对于某些复杂脚本这样不够用, 我建议截取前后2-3帧完整的数据作为上下文信息, 让agent理解一般的常用脚本组合
+
+---
+
+我要测试直接执行run_workflow.py就行了对吧
