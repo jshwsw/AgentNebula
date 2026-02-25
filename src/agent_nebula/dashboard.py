@@ -63,7 +63,7 @@ async def _broadcast(message: dict) -> None:
             await ws.send_text(data)
         except Exception:
             dead.add(ws)
-    _ws_clients -= dead
+    _ws_clients.difference_update(dead)
 
 
 def _get_state() -> dict[str, Any]:

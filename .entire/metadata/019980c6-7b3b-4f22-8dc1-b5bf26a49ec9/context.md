@@ -1,7 +1,7 @@
 # Session Context
 
 Session ID: 019980c6-7b3b-4f22-8dc1-b5bf26a49ec9
-Commit Message: 有没有办法做一个可视化的监控工具或者网页来实时观察整个flow, 比如当前是在执行哪一步, 哪一个task, 活跃的agent在执行哪个task
+Commit Message: 写一个AgentNebula的README文档并推送git, 说明这个工具解决了什么问题, 如何使用, 工作流是怎样的
 
 ## Prompts
 
@@ -135,37 +135,38 @@ Read the output file to retrieve the result: C:\Users\shouhui.jin\AppData\Local\
 有没有办法做一个可视化的监控工具或者网页来实时观察整个flow, 比如当前是在执行哪一步, 哪一个task, 活跃的agent在执行哪个task. 
 我觉得整个workflow可以用一个有向图表达, 你觉得呢
 
+### Prompt 17
+
+这个dashboard每一个节点打开可以再做一个页面来查看这个agent的进度和上下文吗, 你有办法获取当前这个正在执行任务的agent的jsonl吗
+
+### Prompt 18
+
+1. 在agent_nebula这个工具里你得建一个子文件夹, 里边写清楚怎么生成.agent-nebula文件夹下的内容, 包括config.yaml, progress.md和task_list.json, 到其他项目里能很快根据你的模板和文档实际创建出task
+
+2. 我要确认一下, dashboard的web界面是怎么绑定某个工程目录的, 这要通用化, 不能只针对tituseditor-scriptdocs这个任务
+
+### Prompt 19
+
+# 1. 复制模板到你的项目
+你建一个tools的文件夹, 里边加一个py的tool. 自动实现复制模板到当前项目
+
+# 3. 启动
+同样的, 写一个启动脚本, 直接执行默认是指向当前工程的根目录的.agent-nebula
+
+### Prompt 20
+
+写一个AgentNebula的README文档并推送git, 说明这个工具解决了什么问题, 如何使用, 工作流是怎样的
+
 ## Summary
 
-代码已全部提交推送。现在进行端到端验证。
+README 已推送到 GitHub。内容涵盖：
 
-## 当前状态总结
-
-**AgentNebula 框架已完成**，核心模块：
-
-| 模块 | 功能 |
-|------|------|
-| [orchestrator.py](Code/AgentNebula/src/agent_nebula/orchestrator.py) | 无限循环核心、Claude SDK 调用、中断处理 |
-| [dashboard.py](Code/AgentNebula/src/agent_nebula/dashboard.py) | FastAPI Web 监控面板、WebSocket 实时推送 |
-| [cli.py](Code/AgentNebula/src/agent_nebula/cli.py) | CLI 入口 (init/run/status) |
-| [config.py](Code/AgentNebula/src/agent_nebula/config.py) | 配置管理、workflow_dir/cwd 分离 |
-| [tasks.py](Code/AgentNebula/src/agent_nebula/tasks.py) | task_list.json CRUD |
-| [state.py](Code/AgentNebula/src/agent_nebula/state.py) | 进度、session 历史管理 |
-| [prompts/](Code/AgentNebula/src/agent_nebula/prompts/) | Initializer + Worker prompt 模板 |
-
-**TitusEditor 验证案例**：
-- Initializer 已成功运行，生成了 152 个任务
-- T001（创建 p3 目录）已完成
-- 151 个脚本文档任务待处理
-- ExistSkillObjRef 已扩展到 10 个角色 (60001-60010)
-
-**要正式启动无限工作循环**，你需要在外部终端（不是 Claude Code 内部）运行：
-
-```bash
-cd c:\Work\ProjAI\Claude_Sango
-python -m agent_nebula run -w .agent-nebula
-```
-
-然后打开 `http://localhost:8765` 就能看到 Dashboard 实时监控 Agent 的进度。
-
-要不要现在开一个外部终端试一下？或者你有其他想先调整的地方？
+- **解决什么问题** — 单次 Claude session 无法处理大规模任务（context 溢出、状态丢失），AgentNebula 实现了 Anthropic 官方推荐的"轮班工程师"模式
+- **架构图** — Orchestrator 双阶段设计 + Dashboard + 文件状态层
+- **关键设计决策** — workflow_dir/cwd 分离、一个 session 一个 task、文件化状态、模型自动选择
+- **Quick Start** — 3 步上手（install → setup → run）
+- **CLI 参考** — 所有命令和参数
+- **Dashboard 功能** — Task Grid、Live Log、Session Detail Page
+- **Task 格式** — JSON 示例 + 字段说明
+- **Config 格式** — YAML 示例 + 关键选项
+- **项目结构** — 每个文件的职责

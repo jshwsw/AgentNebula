@@ -125,3 +125,25 @@ Read the output file to retrieve the result: C:\Users\shouhui.jin\AppData\Local\
 
 有没有办法做一个可视化的监控工具或者网页来实时观察整个flow, 比如当前是在执行哪一步, 哪一个task, 活跃的agent在执行哪个task. 
 我觉得整个workflow可以用一个有向图表达, 你觉得呢
+
+---
+
+这个dashboard每一个节点打开可以再做一个页面来查看这个agent的进度和上下文吗, 你有办法获取当前这个正在执行任务的agent的jsonl吗
+
+---
+
+1. 在agent_nebula这个工具里你得建一个子文件夹, 里边写清楚怎么生成.agent-nebula文件夹下的内容, 包括config.yaml, progress.md和task_list.json, 到其他项目里能很快根据你的模板和文档实际创建出task
+
+2. 我要确认一下, dashboard的web界面是怎么绑定某个工程目录的, 这要通用化, 不能只针对tituseditor-scriptdocs这个任务
+
+---
+
+# 1. 复制模板到你的项目
+你建一个tools的文件夹, 里边加一个py的tool. 自动实现复制模板到当前项目
+
+# 3. 启动
+同样的, 写一个启动脚本, 直接执行默认是指向当前工程的根目录的.agent-nebula
+
+---
+
+写一个AgentNebula的README文档并推送git, 说明这个工具解决了什么问题, 如何使用, 工作流是怎样的
