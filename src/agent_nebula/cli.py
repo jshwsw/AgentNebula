@@ -46,6 +46,8 @@ def main() -> None:
     p_run.add_argument("--spec", type=str, help="Path to a spec file (used if no task list exists yet)")
     p_run.add_argument("--spec-text", type=str, help="Inline spec text")
     p_run.add_argument("--max-sessions", type=int, default=None, help="Override max sessions (-1 = infinite)")
+    p_run.add_argument("--port", type=int, default=8765, help="Dashboard web port (default: 8765)")
+    p_run.add_argument("--no-dashboard", action="store_true", help="Disable the web dashboard")
 
     # ── status ──
     p_status = sub.add_parser("status", help="Show current workflow status")
@@ -128,7 +130,11 @@ def _cmd_run(args) -> None:
         spec_text = read_spec(workflow_dir)
 
     console.print(Panel(f"AgentNebula - Starting Workflow\nWorkflow: {workflow_dir}", style="bold cyan"))
-    asyncio.run(run_workflow(workflow_dir, spec=spec_text or None))
+    asyncio.run(run_workflow(
+        workflow_dir, spec=spec_text or None,
+        dashboard_port=args.port,
+        no_dashboard=args.no_dashboard,
+    ))
 
 
 def _cmd_status(args) -> None:

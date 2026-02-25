@@ -11,11 +11,11 @@ import asyncio
 import os
 import signal
 import sys
+import time
+import threading
 from pathlib import Path
 
 # Allow launching Claude Code sessions from within an existing session.
-# The SDK spawns a subprocess — this is safe as long as sessions don't
-# share the same working directory simultaneously.
 os.environ.pop("CLAUDECODE", None)
 
 from rich.console import Console
@@ -45,6 +45,43 @@ from agent_nebula.prompts.worker import build_worker_prompt
 
 console = Console()
 
+# ─── Dashboard integration ─────────────────────────────────────────────────
+# Import lazily to keep dashboard optional
+_dashboard = None
+
+def _init_dashboard(workflow_dir: Path):
+    global _dashboard
+    try:
+        from agent_nebula import dashboard
+        dashboard.set_workflow_dir(workflow_dir)
+        _dashboard = dashboard
+    except ImportError:
+        pass
+
+def _dash_log(line: str):
+    if _dashboard:
+        try:
+            _dashboard.append_log(line)
+        except Exception:
+            pass
+
+def _dash_session(**kwargs):
+    if _dashboard:
+        try:
+            _dashboard.update_session_state(**kwargs)
+        except Exception:
+            pass
+
+def _dash_task_update():
+    """Notify dashboard that task_list.json changed."""
+    if _dashboard:
+        try:
+            asyncio.ensure_future(_dashboard._broadcast({"type": "task_update"}))
+        except Exception:
+            pass
+
+
+# ─── Session runner ─────────────────────────────────────────────────────────
 
 async def run_single_session(
     cwd: Path,
@@ -65,6 +102,11 @@ async def run_single_session(
 
     console.print(f"\n[bold cyan]--- Session {session_num} started (model: {model}) ---[/bold cyan]")
     console.print(f"[dim]Working directory: {cwd}[/dim]")
+    _dash_log(f"--- Session {session_num} started (model: {model}) ---")
+    _dash_session(
+        session_num=session_num, phase="working", model=model,
+        started_at=time.time(),
+    )
 
     response_text = ""
     result_msg: ResultMessage | None = None
@@ -76,8 +118,11 @@ async def run_single_session(
                     if isinstance(block, TextBlock):
                         response_text += block.text
                         console.print(block.text, end="")
+                        _dash_log(block.text)
                     elif isinstance(block, ToolUseBlock):
-                        console.print(f"\n[dim][Tool: {block.name}][/dim]", end="")
+                        tool_info = f"[Tool: {block.name}]"
+                        console.print(f"\n[dim]{tool_info}[/dim]", end="")
+                        _dash_log(tool_info)
 
             elif isinstance(message, UserMessage):
                 if isinstance(message.content, list):
@@ -85,19 +130,20 @@ async def run_single_session(
                         if isinstance(block, ToolResultBlock) and block.is_error:
                             err_text = str(block.content)[:200] if block.content else "unknown error"
                             console.print(f"\n[red][Error] {err_text}[/red]")
+                            _dash_log(f"[Error] {err_text}")
 
             elif isinstance(message, ResultMessage):
                 result_msg = message
-                break  # Session complete — exit the message loop
+                break
     except Exception as e:
-        # The SDK may raise after the session ends (e.g., subprocess cleanup).
-        # If we already have a ResultMessage, this is safe to ignore.
         if result_msg is not None:
             console.print(f"\n[dim](post-session cleanup: {type(e).__name__})[/dim]")
         else:
             console.print(f"\n[red]Session error: {e}[/red]")
+            _dash_log(f"Session error: {e}")
             raise
 
+    _dash_log(f"--- Session {session_num} finished ---")
     return response_text, result_msg
 
 
@@ -114,15 +160,21 @@ def _print_status(task_list: TaskList, session_num: int) -> None:
     console.print(table)
 
 
+# ─── Workflow loop ──────────────────────────────────────────────────────────
+
 async def run_workflow(
     workflow_dir: Path,
     spec: str | None = None,
+    dashboard_port: int = 8765,
+    no_dashboard: bool = False,
 ) -> None:
     """Main entry point: run the full init-then-loop workflow.
 
     Args:
         workflow_dir: Directory containing config.yaml, task_list.json, etc.
         spec: User specification text (used only if no task list exists yet).
+        dashboard_port: Port for the web dashboard (default: 8765).
+        no_dashboard: If True, skip starting the dashboard server.
     """
     ensure_dirs(workflow_dir)
     config = _load_or_init_config(workflow_dir)
@@ -131,6 +183,12 @@ async def run_workflow(
 
     console.print(f"[dim]Workflow dir: {workflow_dir}[/dim]")
     console.print(f"[dim]Working dir:  {cwd}[/dim]")
+
+    # Start dashboard server
+    if not no_dashboard:
+        _init_dashboard(workflow_dir)
+        _start_dashboard_server(dashboard_port)
+        console.print(f"[bold green]Dashboard: http://localhost:{dashboard_port}[/bold green]")
 
     # Track interrupt requests
     interrupted = False
@@ -148,13 +206,14 @@ async def run_workflow(
 
     signal.signal(signal.SIGINT, _on_interrupt)
 
-    # ── Phase 1: Initializer (if no task list exists) ────────────────────────
+    # ── Phase 1: Initializer (if no task list exists) ─────────────────────
     if not task_list.exists():
         if not spec:
             console.print("[red]No task list found and no spec provided. Run `agent-nebula init` first.[/red]")
             return
 
         console.print(Panel("Phase 1: Initializer Agent", style="bold magenta"))
+        _dash_session(phase="initializing", current_task_id=None)
         session_num = next_session_number(workflow_dir)
 
         prompt = build_initializer_prompt(
@@ -191,15 +250,17 @@ async def run_workflow(
         )
 
         _print_status(task_list, session_num)
+        _dash_task_update()
         console.print("[green]Initializer complete. Starting worker loop...[/green]\n")
 
         if interrupted:
             console.print("[yellow]Stopping (interrupt received).[/yellow]")
+            _dash_session(phase="idle")
             return
 
         await asyncio.sleep(config.workflow.session_delay_seconds)
 
-    # ── Phase 2: Worker loop (infinite) ──────────────────────────────────────
+    # ── Phase 2: Worker loop (infinite) ───────────────────────────────────
     console.print(Panel("Phase 2: Worker Agent Loop", style="bold magenta"))
     max_sessions = config.workflow.max_sessions
     session_count = 0
@@ -207,6 +268,7 @@ async def run_workflow(
     while True:
         if interrupted:
             console.print("[yellow]Stopping (interrupt received).[/yellow]")
+            _dash_session(phase="idle")
             break
 
         task_list = TaskList(workflow_dir)
@@ -218,12 +280,14 @@ async def run_workflow(
                 f"[bold green]All {total} tasks completed![/bold green]",
                 title="Workflow Complete",
             ))
+            _dash_session(phase="completed")
             break
 
         if max_sessions > 0:
             session_count += 1
             if session_count > max_sessions:
                 console.print(f"[yellow]Reached max sessions ({max_sessions}). Stopping.[/yellow]")
+                _dash_session(phase="idle")
                 break
 
         session_num = next_session_number(workflow_dir)
@@ -231,6 +295,14 @@ async def run_workflow(
 
         next_task = pending[0]
         model = _select_model(config, next_task)
+
+        _dash_session(
+            phase="working",
+            current_task_id=next_task.id,
+            session_num=session_num,
+            model=model,
+            started_at=time.time(),
+        )
 
         prompt = build_worker_prompt(
             workflow_dir=workflow_dir,
@@ -264,6 +336,7 @@ async def run_workflow(
         )
 
         _print_status(task_list, session_num)
+        _dash_task_update()
 
         if not interrupted:
             console.print(
@@ -288,3 +361,19 @@ def _select_model(config: ProjectConfig, task) -> str:
     if task.priority <= 1 or task.category in ("analysis", "feature"):
         return config.workflow.model_complex
     return config.workflow.model_simple
+
+
+def _start_dashboard_server(port: int) -> None:
+    """Start the FastAPI dashboard in a background daemon thread."""
+    import uvicorn
+    from agent_nebula.dashboard import app
+
+    config = uvicorn.Config(
+        app, host="0.0.0.0", port=port,
+        log_level="warning",
+        access_log=False,
+    )
+    server = uvicorn.Server(config)
+
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
