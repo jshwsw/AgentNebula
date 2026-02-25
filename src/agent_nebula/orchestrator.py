@@ -22,15 +22,19 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+import json as _json
+
 from claude_code_sdk import (
     query,
     ClaudeCodeOptions,
     AssistantMessage,
     UserMessage,
+    SystemMessage,
     ResultMessage,
     TextBlock,
     ToolUseBlock,
     ToolResultBlock,
+    ThinkingBlock,
 )
 
 from agent_nebula.config import ProjectConfig
@@ -83,14 +87,66 @@ def _dash_task_update():
 
 # ─── Session runner ─────────────────────────────────────────────────────────
 
+def _serialize_message(message) -> dict:
+    """Serialize a Claude SDK message to a JSON-safe dict for JSONL storage."""
+    if isinstance(message, AssistantMessage):
+        blocks = []
+        for b in message.content:
+            if isinstance(b, TextBlock):
+                blocks.append({"type": "text", "text": b.text})
+            elif isinstance(b, ToolUseBlock):
+                inp = b.input
+                # Truncate very large tool inputs for storage
+                inp_str = _json.dumps(inp, ensure_ascii=False, default=str)
+                if len(inp_str) > 5000:
+                    inp = {"_truncated": True, "_preview": inp_str[:2000]}
+                blocks.append({"type": "tool_use", "id": b.id, "name": b.name, "input": inp})
+            elif isinstance(b, ThinkingBlock):
+                blocks.append({"type": "thinking", "thinking": b.thinking[:3000]})
+            else:
+                blocks.append({"type": type(b).__name__})
+        return {"role": "assistant", "model": getattr(message, "model", ""), "content": blocks}
+
+    elif isinstance(message, UserMessage):
+        blocks = []
+        if isinstance(message.content, str):
+            blocks.append({"type": "text", "text": message.content})
+        elif isinstance(message.content, list):
+            for b in message.content:
+                if isinstance(b, ToolResultBlock):
+                    content_str = str(b.content)[:3000] if b.content else ""
+                    blocks.append({
+                        "type": "tool_result", "tool_use_id": b.tool_use_id,
+                        "is_error": b.is_error or False, "content": content_str,
+                    })
+                else:
+                    blocks.append({"type": type(b).__name__})
+        return {"role": "user", "content": blocks}
+
+    elif isinstance(message, SystemMessage):
+        return {"role": "system", "subtype": message.subtype, "data": message.data}
+
+    elif isinstance(message, ResultMessage):
+        return {
+            "role": "result", "subtype": message.subtype,
+            "is_error": message.is_error, "num_turns": message.num_turns,
+            "duration_ms": message.duration_ms, "session_id": message.session_id,
+            "total_cost_usd": message.total_cost_usd,
+            "result": message.result[:2000] if message.result else None,
+        }
+
+    return {"role": "unknown", "type": type(message).__name__}
+
+
 async def run_single_session(
+    workflow_dir: Path,
     cwd: Path,
     config: ProjectConfig,
     prompt: str,
     model: str,
     session_num: int,
 ) -> tuple[str, ResultMessage | None]:
-    """Run a single Claude Code SDK session."""
+    """Run a single Claude Code SDK session with full JSONL recording."""
 
     options = ClaudeCodeOptions(
         model=model,
@@ -108,33 +164,61 @@ async def run_single_session(
         started_at=time.time(),
     )
 
+    # JSONL file for this session
+    jsonl_dir = workflow_dir / "session_messages"
+    jsonl_dir.mkdir(parents=True, exist_ok=True)
+    jsonl_path = jsonl_dir / f"session_{session_num:04d}.jsonl"
+
     response_text = ""
     result_msg: ResultMessage | None = None
+    msg_index = 0
 
     try:
-        async for message in query(prompt=prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        response_text += block.text
-                        console.print(block.text, end="")
-                        _dash_log(block.text)
-                    elif isinstance(block, ToolUseBlock):
-                        tool_info = f"[Tool: {block.name}]"
-                        console.print(f"\n[dim]{tool_info}[/dim]", end="")
-                        _dash_log(tool_info)
+        with open(jsonl_path, "w", encoding="utf-8") as jsonl_file:
+            # Record the prompt as the first entry
+            jsonl_file.write(_json.dumps({
+                "index": 0, "ts": time.time(), "role": "prompt",
+                "content": prompt[:5000], "model": model,
+            }, ensure_ascii=False, default=str) + "\n")
+            jsonl_file.flush()
 
-            elif isinstance(message, UserMessage):
-                if isinstance(message.content, list):
+            async for message in query(prompt=prompt, options=options):
+                msg_index += 1
+                serialized = _serialize_message(message)
+                serialized["index"] = msg_index
+                serialized["ts"] = time.time()
+
+                # Write to JSONL
+                jsonl_file.write(_json.dumps(serialized, ensure_ascii=False, default=str) + "\n")
+                jsonl_file.flush()
+
+                # Broadcast to dashboard
+                _dash_broadcast_msg(session_num, serialized)
+
+                # Console output + log
+                if isinstance(message, AssistantMessage):
                     for block in message.content:
-                        if isinstance(block, ToolResultBlock) and block.is_error:
-                            err_text = str(block.content)[:200] if block.content else "unknown error"
-                            console.print(f"\n[red][Error] {err_text}[/red]")
-                            _dash_log(f"[Error] {err_text}")
+                        if isinstance(block, TextBlock):
+                            response_text += block.text
+                            console.print(block.text, end="")
+                            _dash_log(block.text)
+                        elif isinstance(block, ToolUseBlock):
+                            tool_info = f"[Tool: {block.name}]"
+                            console.print(f"\n[dim]{tool_info}[/dim]", end="")
+                            _dash_log(tool_info)
 
-            elif isinstance(message, ResultMessage):
-                result_msg = message
-                break
+                elif isinstance(message, UserMessage):
+                    if isinstance(message.content, list):
+                        for block in message.content:
+                            if isinstance(block, ToolResultBlock) and block.is_error:
+                                err_text = str(block.content)[:200] if block.content else "unknown error"
+                                console.print(f"\n[red][Error] {err_text}[/red]")
+                                _dash_log(f"[Error] {err_text}")
+
+                elif isinstance(message, ResultMessage):
+                    result_msg = message
+                    break
+
     except Exception as e:
         if result_msg is not None:
             console.print(f"\n[dim](post-session cleanup: {type(e).__name__})[/dim]")
@@ -143,8 +227,21 @@ async def run_single_session(
             _dash_log(f"Session error: {e}")
             raise
 
-    _dash_log(f"--- Session {session_num} finished ---")
+    _dash_log(f"--- Session {session_num} finished ({msg_index} messages) ---")
     return response_text, result_msg
+
+
+def _dash_broadcast_msg(session_num: int, serialized: dict):
+    """Broadcast a structured message to dashboard WebSocket clients."""
+    if _dashboard:
+        try:
+            asyncio.ensure_future(_dashboard._broadcast({
+                "type": "session_message",
+                "session_num": session_num,
+                "message": serialized,
+            }))
+        except Exception:
+            pass
 
 
 def _print_status(task_list: TaskList, session_num: int) -> None:
@@ -226,6 +323,7 @@ async def run_workflow(
         )
 
         response_text, result_msg = await run_single_session(
+            workflow_dir=workflow_dir,
             cwd=cwd,
             config=config,
             prompt=prompt,
@@ -312,6 +410,7 @@ async def run_workflow(
         )
 
         response_text, result_msg = await run_single_session(
+            workflow_dir=workflow_dir,
             cwd=cwd,
             config=config,
             prompt=prompt,

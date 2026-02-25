@@ -128,6 +128,47 @@ async def websocket_endpoint(ws: WebSocket):
         _ws_clients.discard(ws)
 
 
+@app.get("/api/session/{session_num}/messages")
+async def api_session_messages(session_num: int):
+    """Return all JSONL messages for a given session."""
+    if _workflow_dir is None:
+        return {"error": "No workflow directory"}
+    jsonl_path = _workflow_dir / "session_messages" / f"session_{session_num:04d}.jsonl"
+    if not jsonl_path.exists():
+        return {"messages": [], "exists": False}
+    messages = []
+    with open(jsonl_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    messages.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    return {"messages": messages, "exists": True}
+
+
+@app.get("/api/task/{task_id}")
+async def api_task_detail(task_id: str):
+    """Return detailed info for a task, including which session worked on it."""
+    if _workflow_dir is None:
+        return {"error": "No workflow directory"}
+    tl = TaskList(_workflow_dir)
+    task = tl.get(task_id)
+    if task is None:
+        return {"error": f"Task {task_id} not found"}
+    return {
+        "task": task.to_dict(),
+        "session_messages_available": task.session_attempted is not None,
+    }
+
+
+@app.get("/session/{session_num}", response_class=HTMLResponse)
+async def session_detail_page(session_num: int):
+    """Dedicated page for viewing a session's full agent conversation."""
+    return _SESSION_DETAIL_HTML
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     return _DASHBOARD_HTML
@@ -368,9 +409,10 @@ function showPopup(t) {
         <div class="field"><div class="field-label">Description</div><div class="field-value">${t.description}</div></div>
         <div class="field"><div class="field-label">Category / Priority</div><div class="field-value">${t.category} / p${t.priority}</div></div>
         ${t.dependencies.length ? '<div class="field"><div class="field-label">Dependencies</div><div class="field-value">'+t.dependencies.join(', ')+'</div></div>' : ''}
-        ${t.session_attempted ? '<div class="field"><div class="field-label">Session</div><div class="field-value">#'+t.session_attempted+'</div></div>' : ''}
+        ${t.session_attempted ? '<div class="field"><div class="field-label">Session</div><div class="field-value"><a href="/session/'+t.session_attempted+'" target="_blank" style="color:var(--blue);text-decoration:underline">#'+t.session_attempted+' — View Agent Conversation →</a></div></div>' : ''}
         ${t.notes ? '<div class="field"><div class="field-label">Notes</div><div class="field-value" style="white-space:pre-wrap">'+t.notes+'</div></div>' : ''}
         ${metaHtml ? '<div class="field"><div class="field-label">Metadata</div>'+metaHtml+'</div>' : ''}
+        ${S.active_session.current_task_id===t.id ? '<div style="margin-top:12px"><a href="/session/'+S.active_session.session_num+'" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:underline">⟳ Watch Live Agent Session →</a></div>' : ''}
     `;
     document.getElementById('popupOverlay').classList.add('show');
 }
@@ -416,6 +458,206 @@ function addLog(line) {
     el.appendChild(d);
     el.scrollTop=el.scrollHeight;
 }
+</script>
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────────────────
+# Session detail page — view full agent conversation
+# ─────────────────────────────────────────────────────────
+_SESSION_DETAIL_HTML = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentNebula — Session Detail</title>
+<style>
+:root {
+  --bg:#0d1117; --bg2:#161b22; --border:#30363d; --text:#c9d1d9;
+  --dim:#8b949e; --bright:#f0f6fc; --blue:#58a6ff; --green:#3fb950;
+  --red:#f85149; --purple:#d2a8ff; --yellow:#d29922; --orange:#db6d28;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); }
+.top-bar { background:var(--bg2); padding:12px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px; }
+.top-bar a { color:var(--blue); text-decoration:none; font-size:14px; }
+.top-bar h1 { font-size:18px; color:var(--bright); }
+.top-bar .live-dot { width:8px; height:8px; border-radius:50%; background:var(--green); animation:pulse 1.5s infinite; display:none; }
+.top-bar .live-dot.active { display:inline-block; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.stats-row { background:var(--bg2); padding:8px 24px; border-bottom:1px solid var(--border); font-size:12px; color:var(--dim); display:flex; gap:24px; }
+.stats-row span { color:var(--bright); font-weight:600; }
+.conversation { max-width:900px; margin:0 auto; padding:16px 24px; }
+.msg { margin-bottom:12px; border-radius:8px; overflow:hidden; }
+.msg-header { padding:6px 12px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; display:flex; justify-content:space-between; }
+.msg-body { padding:10px 14px; font-size:13px; line-height:1.6; }
+/* Roles */
+.msg.assistant .msg-header { background:#1a2332; color:var(--blue); }
+.msg.assistant .msg-body { background:#111820; }
+.msg.user .msg-header { background:#1a1f2e; color:var(--purple); }
+.msg.user .msg-body { background:#12141e; }
+.msg.system .msg-header { background:#1a1a1a; color:var(--dim); }
+.msg.system .msg-body { background:#111; font-size:11px; color:var(--dim); }
+.msg.result .msg-header { background:#1b2e1b; color:var(--green); }
+.msg.result .msg-body { background:#0d1f0d; }
+.msg.prompt .msg-header { background:#2d1b1b; color:var(--orange); }
+.msg.prompt .msg-body { background:#1f1510; white-space:pre-wrap; max-height:300px; overflow-y:auto; font-size:12px; }
+/* Content blocks */
+.block { margin-bottom:8px; }
+.block-text { white-space:pre-wrap; word-break:break-word; }
+.block-tool-use { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:8px 12px; }
+.block-tool-use .tool-name { color:var(--purple); font-weight:700; font-size:12px; }
+.block-tool-use .tool-input { font-family:'Cascadia Code','Fira Code',monospace; font-size:11px; color:var(--dim); max-height:200px; overflow-y:auto; white-space:pre-wrap; margin-top:4px; word-break:break-all; }
+.block-tool-result { background:#0d1117; border:1px solid var(--border); border-radius:6px; padding:8px 12px; }
+.block-tool-result.error { border-color:var(--red); }
+.block-tool-result .tr-label { font-size:11px; color:var(--dim); margin-bottom:2px; }
+.block-tool-result .tr-content { font-family:'Cascadia Code','Fira Code',monospace; font-size:11px; color:var(--text); max-height:200px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
+.block-thinking { background:#1a1a10; border:1px solid #3d3d20; border-radius:6px; padding:8px 12px; }
+.block-thinking summary { color:var(--yellow); font-size:11px; cursor:pointer; }
+.block-thinking .think-content { font-size:11px; color:var(--dim); white-space:pre-wrap; margin-top:4px; max-height:200px; overflow-y:auto; }
+.toggle-btn { background:var(--bg2); border:1px solid var(--border); color:var(--dim); padding:2px 8px; border-radius:3px; font-size:10px; cursor:pointer; }
+.toggle-btn:hover { border-color:var(--blue); color:var(--blue); }
+.empty-state { text-align:center; color:var(--dim); padding:60px 20px; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="top-bar">
+    <a href="/">← Dashboard</a>
+    <h1 id="pageTitle">Session</h1>
+    <div class="live-dot" id="liveDot"></div>
+    <span id="liveLabel" style="color:var(--green);font-size:12px;display:none">LIVE</span>
+</div>
+<div class="stats-row" id="statsRow">Loading...</div>
+<div class="conversation" id="conversation">
+    <div class="empty-state">Loading session messages...</div>
+</div>
+
+<script>
+const sessionNum = parseInt(location.pathname.split('/').pop());
+let isLive = false;
+let messages = [];
+
+// Load historical messages
+async function loadMessages() {
+    const res = await fetch(`/api/session/${sessionNum}/messages`);
+    const data = await res.json();
+    if (data.messages) {
+        messages = data.messages;
+        renderAll();
+    }
+    if (!data.exists) {
+        document.getElementById('conversation').innerHTML = '<div class="empty-state">Session not found or still starting...</div>';
+    }
+}
+
+// WebSocket for live updates
+function connectWS() {
+    const ws = new WebSocket('ws://'+location.host+'/ws');
+    ws.onmessage = e => {
+        const m = JSON.parse(e.data);
+        if (m.type === 'session_message' && m.session_num === sessionNum) {
+            messages.push(m.message);
+            appendMessage(m.message);
+            isLive = true;
+            document.getElementById('liveDot').classList.add('active');
+            document.getElementById('liveLabel').style.display = '';
+        } else if (m.type === 'session_update') {
+            if (m.data.session_num !== sessionNum || m.data.phase === 'idle') {
+                isLive = false;
+                document.getElementById('liveDot').classList.remove('active');
+                document.getElementById('liveLabel').style.display = 'none';
+            }
+        }
+    };
+    ws.onclose = () => setTimeout(connectWS, 2000);
+}
+
+function renderAll() {
+    document.getElementById('pageTitle').textContent = `Session #${sessionNum}`;
+    // Stats
+    const assistantMsgs = messages.filter(m=>m.role==='assistant').length;
+    const toolUses = messages.filter(m=>m.role==='assistant').reduce((n,m)=>{
+        return n + (m.content||[]).filter(b=>b.type==='tool_use').length;
+    }, 0);
+    const resultMsg = messages.find(m=>m.role==='result');
+    let statsHtml = `Messages: <span>${messages.length}</span> | Assistant turns: <span>${assistantMsgs}</span> | Tool calls: <span>${toolUses}</span>`;
+    if (resultMsg) {
+        statsHtml += ` | Duration: <span>${(resultMsg.duration_ms/1000).toFixed(1)}s</span>`;
+        statsHtml += ` | Turns: <span>${resultMsg.num_turns}</span>`;
+        if (resultMsg.total_cost_usd) statsHtml += ` | Cost: <span>$${resultMsg.total_cost_usd.toFixed(4)}</span>`;
+    }
+    document.getElementById('statsRow').innerHTML = statsHtml;
+
+    // Messages
+    const conv = document.getElementById('conversation');
+    conv.innerHTML = '';
+    messages.forEach(m => appendMessage(m));
+}
+
+function appendMessage(m) {
+    const conv = document.getElementById('conversation');
+    const div = document.createElement('div');
+    div.className = `msg ${m.role}`;
+
+    const ts = m.ts ? new Date(m.ts*1000).toLocaleTimeString() : '';
+    div.innerHTML = `<div class="msg-header"><span>${m.role.toUpperCase()}${m.model?' ('+m.model+')':''}</span><span>${ts} #${m.index||''}</span></div>`;
+
+    const body = document.createElement('div');
+    body.className = 'msg-body';
+
+    if (m.role === 'prompt') {
+        body.innerHTML = `<div class="block-text">${escHtml(m.content||'')}</div>`;
+    } else if (m.role === 'assistant') {
+        (m.content||[]).forEach(b => {
+            if (b.type === 'text') {
+                const d = document.createElement('div');
+                d.className = 'block block-text';
+                d.textContent = b.text;
+                body.appendChild(d);
+            } else if (b.type === 'tool_use') {
+                const d = document.createElement('div');
+                d.className = 'block block-tool-use';
+                const inputStr = typeof b.input==='object' ? JSON.stringify(b.input,null,2) : String(b.input);
+                d.innerHTML = `<div class="tool-name">🔧 ${b.name}</div><div class="tool-input">${escHtml(inputStr)}</div>`;
+                body.appendChild(d);
+            } else if (b.type === 'thinking') {
+                const d = document.createElement('div');
+                d.className = 'block block-thinking';
+                d.innerHTML = `<details><summary>💭 Thinking (click to expand)</summary><div class="think-content">${escHtml(b.thinking||'')}</div></details>`;
+                body.appendChild(d);
+            }
+        });
+    } else if (m.role === 'user') {
+        (m.content||[]).forEach(b => {
+            if (b.type === 'tool_result') {
+                const d = document.createElement('div');
+                d.className = `block block-tool-result${b.is_error?' error':''}`;
+                d.innerHTML = `<div class="tr-label">${b.is_error?'❌ Error':'✅ Result'} (${b.tool_use_id||''})</div><div class="tr-content">${escHtml(b.content||'')}</div>`;
+                body.appendChild(d);
+            }
+        });
+    } else if (m.role === 'result') {
+        body.innerHTML = `
+            <div>Status: ${m.is_error?'<span style="color:var(--red)">Error</span>':'<span style="color:var(--green)">Success</span>'}</div>
+            <div>Turns: ${m.num_turns} | Duration: ${(m.duration_ms/1000).toFixed(1)}s</div>
+            ${m.total_cost_usd?'<div>Cost: $'+m.total_cost_usd.toFixed(4)+'</div>':''}
+        `;
+    } else if (m.role === 'system') {
+        body.innerHTML = `<div>${m.subtype||''}: ${JSON.stringify(m.data||{}).substring(0,200)}</div>`;
+    }
+
+    div.appendChild(body);
+    conv.appendChild(div);
+    window.scrollTo(0, document.body.scrollHeight);
+}
+
+function escHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+loadMessages();
+connectWS();
+// Auto-refresh every 10s for non-live sessions
+setInterval(() => { if (!isLive) loadMessages(); }, 10000);
 </script>
 </body>
 </html>"""
