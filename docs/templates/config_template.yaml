@@ -1,0 +1,64 @@
+# AgentNebula Workflow Configuration
+# Copy this file to: <your-project>/.agent-nebula/config.yaml
+
+project:
+  # Display name for this workflow
+  name: "My Project Name"
+
+  # Project type (used for auto-detection heuristics)
+  # Options: web-app, api, cli, library, game, docs, generic
+  type: generic
+
+  # Technologies used (informational)
+  tech_stack: []
+
+  # IMPORTANT: Working directory for the Claude agent
+  # This is where the agent will read/write files
+  # Can be different from the workflow directory
+  cwd: /path/to/your/project
+
+workflow:
+  # Model for complex tasks (analysis, feature implementation)
+  model_complex: claude-opus-4-6
+
+  # Model for simpler tasks (docs generation, small fixes)
+  model_simple: claude-sonnet-4-6
+
+  # Maximum sessions to run (-1 = infinite, run until all tasks done)
+  max_sessions: -1
+
+  # Seconds to wait between sessions (allows Ctrl+C interrupt)
+  session_delay_seconds: 3
+
+  # Auto git-commit after each session
+  auto_commit: true
+
+  # Max API turns per session (prevents runaway sessions)
+  max_turns_per_session: 200
+
+  # Permission mode for Claude Code
+  # Options: default, acceptEdits, plan, bypassPermissions
+  permission_mode: acceptEdits
+
+security:
+  # Restrict file operations to project directory
+  sandbox_to_project: true
+
+  # Tools the Claude agent is allowed to use
+  allowed_tools:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash
+    - Task
+    - TodoWrite
+
+verification:
+  # Verification strategy: auto, manual, script, none
+  strategy: auto
+
+  # Commands to run for verification (if strategy = script)
+  test_command: ""
+  build_command: ""

@@ -1,0 +1,53 @@
+{
+  "tasks": [
+    {
+      "id": "T001",
+      "category": "setup",
+      "priority": 0,
+      "description": "Set up the project scaffolding",
+      "acceptance_criteria": [
+        "Directory structure created",
+        "Initial config files in place"
+      ],
+      "dependencies": [],
+      "passes": false,
+      "session_attempted": null,
+      "notes": "",
+      "metadata": {}
+    },
+    {
+      "id": "T002",
+      "category": "feature",
+      "priority": 1,
+      "description": "Implement user authentication",
+      "acceptance_criteria": [
+        "Login endpoint returns JWT token",
+        "Invalid credentials return 401"
+      ],
+      "dependencies": ["T001"],
+      "passes": false,
+      "session_attempted": null,
+      "notes": "Use bcrypt for password hashing",
+      "metadata": {
+        "source_file": "src/auth.py",
+        "output_file": "src/auth.py"
+      }
+    },
+    {
+      "id": "T003",
+      "category": "docs",
+      "priority": 2,
+      "description": "Write API documentation for auth endpoints",
+      "acceptance_criteria": [
+        "All endpoints documented with request/response examples"
+      ],
+      "dependencies": ["T002"],
+      "passes": false,
+      "session_attempted": null,
+      "notes": "",
+      "metadata": {
+        "output_file": "docs/api/auth.md"
+      }
+    }
+  ]
+}
