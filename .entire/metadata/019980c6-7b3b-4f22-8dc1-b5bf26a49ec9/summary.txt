@@ -1,5 +1,12 @@
-Session 4 正在执行，已有 12 条消息。工作流启动成功了。
+现在 tools/ 里有三个脚本：
 
-修复方案很简单：**不把 spec 内容塞进命令行参数或 prompt，而是让 agent 自己去读 `spec.md` 文件**。Prompt 里只有一行指令："FIRST THING: Read the Task Execution Guide at `<path>/spec.md`"。这样 prompt 很短，不会触发 Windows 32KB 限制。
+```bash
+# 初始化
+python Code/AgentNebula/tools/setup_workflow.py .
 
-你可以在 `http://localhost:8765` 监控进度。
+# 启动（自动清理旧进程）
+python Code/AgentNebula/tools/run_workflow.py .
+
+# 停止
+python Code/AgentNebula/tools/stop_workflow.py
+```

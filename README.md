@@ -121,13 +121,62 @@ python -m agent_nebula status [-w DIR]
 
 ## Dashboard
 
-The web dashboard provides real-time monitoring:
+The web dashboard starts automatically at `http://localhost:8765` and provides real-time monitoring of the entire workflow.
 
-- **Task Grid** — All tasks displayed as color-coded cards (green=done, blue=active, gray=pending). Click any card to see full metadata, dependencies, and notes.
-- **Progress Bar** — Overall completion percentage with task/session counts.
-- **Session History** — Summary cards for each completed session.
-- **Live Log** — Real-time streaming of agent output via WebSocket.
-- **Session Detail Page** — Click through to see the full agent conversation: every text output, tool call, tool result, and thinking block. Active sessions stream in real-time with a LIVE indicator.
+### Main View
+
+The main page shows all tasks as a grid, with real-time status updates:
+
+![Dashboard Main View](docs/images/dashboard-main.png)
+
+- **Header**: Project name, workflow phase (IDLE/WORKING), status badge
+- **Stats Bar**: Tasks done/total, sessions completed, current task ID, progress percentage
+- **Task Grid**: Color-coded cards — green (completed), blue with glow (in progress), gray (pending). Click any card to open the detail popup.
+- **Filters**: All / Pending / Done buttons to filter the grid
+- **Active Session Panel**: Current session number, task, model, start time
+- **Session History**: Summary cards for completed sessions
+- **Live Log**: Real-time streaming of agent text output and tool calls
+
+### Task Detail Popup
+
+Click any task card to see full details:
+
+- Task ID, description, category, priority
+- Dependencies and completion status
+- Notes left by previous sessions
+- All metadata (source files, output paths, usage data)
+- Link to view the full agent conversation ("View Agent Conversation →")
+- For active tasks: "Watch Live Agent Session →" link
+
+### Session Detail Page (`/session/{num}`)
+
+Each session's full agent conversation is recorded as JSONL and viewable at `/session/{num}`:
+
+![Session Detail](docs/images/session-detail.png)
+
+- **Message stream**: Every assistant message, tool call, tool result, and thinking block
+- **Color-coded roles**: Assistant (blue), User/tool results (purple), System (gray), Result (green)
+- **Tool calls**: Expandable blocks showing tool name and input parameters
+- **Thinking blocks**: Collapsible sections for agent reasoning
+- **Live streaming**: Active sessions show a green LIVE indicator with real-time message append
+- **Stats bar**: Message count, assistant turns, tool calls, duration, cost
+
+### Dashboard CLI
+
+```bash
+# Start workflow with dashboard (default port 8765)
+python tools/run_workflow.py /path/to/project
+
+# Custom port
+python tools/run_workflow.py /path/to/project --port 9000
+
+# Disable dashboard
+python tools/run_workflow.py /path/to/project --no-dashboard
+
+# Stop workflow and free port
+python tools/stop_workflow.py
+python tools/stop_workflow.py --port 9000
+```
 
 ## Task Format
 
