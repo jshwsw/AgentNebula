@@ -27,16 +27,14 @@ def build_worker_prompt(
     done_count, total_count = tl.stats()
     pending = tl.pending()
 
-    # Read progress notes
+    # Read progress notes (truncate to last 2000 chars to keep prompt under Windows CLI limit)
     progress_text = ""
     if progress_path.exists():
-        progress_text = progress_path.read_text(encoding="utf-8")
-
-    # Read spec (task-specific execution instructions)
-    spec_path = workflow_dir / "spec.md"
-    spec_text = ""
-    if spec_path.exists():
-        spec_text = spec_path.read_text(encoding="utf-8")
+        full_progress = progress_path.read_text(encoding="utf-8")
+        if len(full_progress) > 2000:
+            progress_text = f"(truncated — full file at {progress_path})\n...\n" + full_progress[-2000:]
+        else:
+            progress_text = full_progress
 
     # Format pending tasks
     if pending:
@@ -60,9 +58,9 @@ def build_worker_prompt(
     hist_dir = workflow_dir / "session_history"
     recent_sessions = ""
     if hist_dir.exists():
-        session_files = sorted(hist_dir.glob("session_*.md"))[-3:]
+        session_files = sorted(hist_dir.glob("session_*.md"))[-2:]  # Last 2 only
         for sf in session_files:
-            recent_sessions += f"\n--- {sf.name} ---\n{sf.read_text(encoding='utf-8')[:800]}\n"
+            recent_sessions += f"\n--- {sf.name} ---\n{sf.read_text(encoding='utf-8')[:500]}\n"
 
     prompt = f"""You are the **Worker Agent** for the AgentNebula workflow system, Session #{session_num}.
 
