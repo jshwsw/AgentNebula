@@ -182,42 +182,57 @@ async def run_single_session(
             }, ensure_ascii=False, default=str) + "\n")
             jsonl_file.flush()
 
-            async for message in query(prompt=prompt, options=options):
-                msg_index += 1
-                serialized = _serialize_message(message)
-                serialized["index"] = msg_index
-                serialized["ts"] = time.time()
+            # Use manual iteration + aclose() to avoid asyncio cancel scope errors
+            # when breaking out of the generator mid-stream
+            stream = query(prompt=prompt, options=options).__aiter__()
+            try:
+                while True:
+                    try:
+                        message = await stream.__anext__()
+                    except StopAsyncIteration:
+                        break
 
-                # Write to JSONL
-                jsonl_file.write(_json.dumps(serialized, ensure_ascii=False, default=str) + "\n")
-                jsonl_file.flush()
+                    msg_index += 1
+                    serialized = _serialize_message(message)
+                    serialized["index"] = msg_index
+                    serialized["ts"] = time.time()
 
-                # Broadcast to dashboard
-                _dash_broadcast_msg(session_num, serialized)
+                    # Write to JSONL
+                    jsonl_file.write(_json.dumps(serialized, ensure_ascii=False, default=str) + "\n")
+                    jsonl_file.flush()
 
-                # Console output + log
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            response_text += block.text
-                            console.print(block.text, end="")
-                            _dash_log(block.text)
-                        elif isinstance(block, ToolUseBlock):
-                            tool_info = f"[Tool: {block.name}]"
-                            console.print(f"\n[dim]{tool_info}[/dim]", end="")
-                            _dash_log(tool_info)
+                    # Broadcast to dashboard
+                    _dash_broadcast_msg(session_num, serialized)
 
-                elif isinstance(message, UserMessage):
-                    if isinstance(message.content, list):
+                    # Console output + log
+                    if isinstance(message, AssistantMessage):
                         for block in message.content:
-                            if isinstance(block, ToolResultBlock) and block.is_error:
-                                err_text = str(block.content)[:200] if block.content else "unknown error"
-                                console.print(f"\n[red][Error] {err_text}[/red]")
-                                _dash_log(f"[Error] {err_text}")
+                            if isinstance(block, TextBlock):
+                                response_text += block.text
+                                console.print(block.text, end="")
+                                _dash_log(block.text)
+                            elif isinstance(block, ToolUseBlock):
+                                tool_info = f"[Tool: {block.name}]"
+                                console.print(f"\n[dim]{tool_info}[/dim]", end="")
+                                _dash_log(tool_info)
 
-                elif isinstance(message, ResultMessage):
-                    result_msg = message
-                    break
+                    elif isinstance(message, UserMessage):
+                        if isinstance(message.content, list):
+                            for block in message.content:
+                                if isinstance(block, ToolResultBlock) and block.is_error:
+                                    err_text = str(block.content)[:200] if block.content else "unknown error"
+                                    console.print(f"\n[red][Error] {err_text}[/red]")
+                                    _dash_log(f"[Error] {err_text}")
+
+                    elif isinstance(message, ResultMessage):
+                        result_msg = message
+                        break
+            finally:
+                # Explicitly close the generator to avoid cancel scope errors
+                try:
+                    await stream.aclose()
+                except Exception:
+                    pass
 
     except Exception as e:
         if result_msg is not None:
