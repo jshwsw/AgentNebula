@@ -182,57 +182,44 @@ async def run_single_session(
             }, ensure_ascii=False, default=str) + "\n")
             jsonl_file.flush()
 
-            # Use manual iteration + aclose() to avoid asyncio cancel scope errors
-            # when breaking out of the generator mid-stream
-            stream = query(prompt=prompt, options=options).__aiter__()
-            try:
-                while True:
-                    try:
-                        message = await stream.__anext__()
-                    except StopAsyncIteration:
-                        break
+            # Do NOT break out of the generator — let it finish naturally.
+            # Breaking causes anyio cancel scope errors that crash the event loop.
+            async for message in query(prompt=prompt, options=options):
+                msg_index += 1
+                serialized = _serialize_message(message)
+                serialized["index"] = msg_index
+                serialized["ts"] = time.time()
 
-                    msg_index += 1
-                    serialized = _serialize_message(message)
-                    serialized["index"] = msg_index
-                    serialized["ts"] = time.time()
+                # Write to JSONL
+                jsonl_file.write(_json.dumps(serialized, ensure_ascii=False, default=str) + "\n")
+                jsonl_file.flush()
 
-                    # Write to JSONL
-                    jsonl_file.write(_json.dumps(serialized, ensure_ascii=False, default=str) + "\n")
-                    jsonl_file.flush()
+                # Broadcast to dashboard
+                _dash_broadcast_msg(session_num, serialized)
 
-                    # Broadcast to dashboard
-                    _dash_broadcast_msg(session_num, serialized)
+                # Console output + log
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            response_text += block.text
+                            console.print(block.text, end="")
+                            _dash_log(block.text)
+                        elif isinstance(block, ToolUseBlock):
+                            tool_info = f"[Tool: {block.name}]"
+                            console.print(f"\n[dim]{tool_info}[/dim]", end="")
+                            _dash_log(tool_info)
 
-                    # Console output + log
-                    if isinstance(message, AssistantMessage):
+                elif isinstance(message, UserMessage):
+                    if isinstance(message.content, list):
                         for block in message.content:
-                            if isinstance(block, TextBlock):
-                                response_text += block.text
-                                console.print(block.text, end="")
-                                _dash_log(block.text)
-                            elif isinstance(block, ToolUseBlock):
-                                tool_info = f"[Tool: {block.name}]"
-                                console.print(f"\n[dim]{tool_info}[/dim]", end="")
-                                _dash_log(tool_info)
+                            if isinstance(block, ToolResultBlock) and block.is_error:
+                                err_text = str(block.content)[:200] if block.content else "unknown error"
+                                console.print(f"\n[red][Error] {err_text}[/red]")
+                                _dash_log(f"[Error] {err_text}")
 
-                    elif isinstance(message, UserMessage):
-                        if isinstance(message.content, list):
-                            for block in message.content:
-                                if isinstance(block, ToolResultBlock) and block.is_error:
-                                    err_text = str(block.content)[:200] if block.content else "unknown error"
-                                    console.print(f"\n[red][Error] {err_text}[/red]")
-                                    _dash_log(f"[Error] {err_text}")
-
-                    elif isinstance(message, ResultMessage):
-                        result_msg = message
-                        break
-            finally:
-                # Explicitly close the generator to avoid cancel scope errors
-                try:
-                    await stream.aclose()
-                except Exception:
-                    pass
+                elif isinstance(message, ResultMessage):
+                    result_msg = message
+                    # Don't break — let the generator reach StopAsyncIteration naturally
 
     except Exception as e:
         if result_msg is not None:
@@ -457,7 +444,11 @@ async def run_workflow(
                 f"[dim]Next session in {config.workflow.session_delay_seconds}s "
                 f"(Ctrl+C to stop)...[/dim]"
             )
-            await asyncio.sleep(config.workflow.session_delay_seconds)
+            try:
+                await asyncio.sleep(config.workflow.session_delay_seconds)
+            except (asyncio.CancelledError, RuntimeError):
+                # SDK cancel scope may leak and cancel this sleep — safe to ignore
+                await asyncio.sleep(0.1)  # Brief yield to let cleanup finish
 
 
 def _load_or_init_config(workflow_dir: Path) -> ProjectConfig:
