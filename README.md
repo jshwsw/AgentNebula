@@ -254,16 +254,15 @@ AgentNebula/
 │   ├── TASK_FORMAT.md       # task_list.json field reference
 │   └── templates/           # Config, spec, and task list templates
 ├── examples/
-│   └── titus-script-docs/   # Real-world example: 152-task documentation workflow
+│   └── .agent-nebula/   # Real-world example: 152-task documentation workflow
 └── pyproject.toml
 ```
 
 ## Examples
 
-See [examples/titus-script-docs/](examples/titus-script-docs/) for a real-world workflow that generates documentation for 150+ game engine script types. It demonstrates:
+See [examples/.agent-nebula/](examples/.agent-nebula/) for a real-world workflow that generates documentation for 150+ game engine script types. It demonstrates:
 - Detailed `spec.md` with per-section quality requirements
 - Workflow-local tools (`extract_script_usage.py`)
-- Complete handoff document for agent continuity
 - Task list with metadata (source paths, usage data)
 
 ## Requirements

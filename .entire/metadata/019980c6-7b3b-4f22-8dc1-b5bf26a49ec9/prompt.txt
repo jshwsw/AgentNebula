@@ -286,3 +286,15 @@ C:\Work\ProjAI\Claude_Sango\Code\Titus\Content\App\Data\App\Entity\Role下边还
 ---
 
 [Image: original 3831x2111, displayed at 2000x1102. Multiply coordinates by 1.92 to map to original image.]
+
+---
+
+清理一下progress, 我重新跑T002
+
+---
+
+1. 你在AgentNebula建一个example的文件夹吧, 把本工程的.agent-nebula作为案例放进去
+
+2. session detail在README里是坏的, 你可以链接到example里的某个session文件
+
+3. 我重新存储了images下边的dashboard-main.png, 你重新提交git吧, 刚才没提交

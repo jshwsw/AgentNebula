@@ -1,7 +1,9 @@
 # Session Context
 
 Session ID: 019980c6-7b3b-4f22-8dc1-b5bf26a49ec9
-Commit Message: [Image: original 3831x2111, displayed at 2000x1102. Multiply coordinates
+Commit Message: 1. 你在AgentNebula建一个example的文件夹吧, 把本工程的.agent-nebula作为案例放进去
+
+2. session d
 
 ## Prompts
 
@@ -296,27 +298,39 @@ C:\Work\ProjAI\Claude_Sango\Code\Titus\Content\App\Data\App\Entity\Role下边还
 
 [Image: original 3831x2111, displayed at 2000x1102. Multiply coordinates by 1.92 to map to original image.]
 
+### Prompt 45
+
+清理一下progress, 我重新跑T002
+
+### Prompt 46
+
+1. 你在AgentNebula建一个example的文件夹吧, 把本工程的.agent-nebula作为案例放进去
+
+2. session detail在README里是坏的, 你可以链接到example里的某个session文件
+
+3. 我重新存储了images下边的dashboard-main.png, 你重新提交git吧, 刚才没提交
+
 ## Summary
 
-完成。两份文档已创建：
+完成。AgentNebula 仓库现在的完整结构：
 
-### 1. AgentNebula README 更新
-- Dashboard 详细使用指南：Main View、Task Detail Popup、Session Detail Page
-- CLI 命令参考（run/stop/port）
-- 截图位置预留（`docs/images/`）
-
-### 2. `.agent-nebula/HANDOFF.md` — 完整交接手册
-
-7 个章节覆盖所有关键知识：
-
-| 章节 | 内容 |
-|------|------|
-| 1. Project Overview | 任务目标、当前进度、两个代码库的关系 |
-| 2. AgentNebula Architecture | 核心文件、设计决策、已知问题与解决方案 |
-| 3. TitusEditor Knowledge | 引擎脚本系统、C++ 源码位置、已有文档目录 |
-| 4. Role Data Pipeline | analyze_role.py 用法、ExistSkillObjRef 结构、extract_script_usage.py |
-| 5. Workflow Spec Design | spec.md 的演进历史——解决了哪些问题（大文件、质量不足、usage 计数、Windows 限制） |
-| 6. How to Continue | 继续运行工作流、添加角色数据、改进框架的具体命令 |
-| 7. File Map | 完整的目录树，标注每个文件/目录的用途 |
-
-下一个 agent 读完这份文档就能无缝接力。
+```
+Code/AgentNebula/
+├── README.md                          # 含 Dashboard 截图和使用说明
+├── docs/
+│   ├── images/dashboard-main.png      # Dashboard 截图
+│   ├── QUICKSTART.md
+│   ├── TASK_FORMAT.md
+│   └── templates/
+├── examples/
+│   └── titus-script-docs/             # 真实案例
+│       ├── README.md                  # 案例说明
+│       ├── config.yaml                # 工作流配置
+│       ├── spec.md                    # 任务执行指南
+│       ├── task_list_sample.json      # 5个任务样本
+│       ├── HANDOFF.md                 # 完整交接手册
+│       ├── progress.md
+│       └── tools/                     # 工作流专用工具
+├── src/agent_nebula/                  # 框架代码
+└── tools/                             # setup/run/stop 脚本
+```
