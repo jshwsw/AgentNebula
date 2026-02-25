@@ -7,8 +7,6 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
 
-from agent_nebula.config import WORKFLOW_DIR
-
 
 @dataclass
 class Task:
@@ -21,7 +19,6 @@ class Task:
     passes: bool = False
     session_attempted: int | None = None
     notes: str = ""
-    # Optional metadata for domain-specific context
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,10 +41,13 @@ class Task:
 
 
 class TaskList:
-    """Manages task_list.json — the single source of truth for work items."""
+    """Manages task_list.json — the single source of truth for work items.
 
-    def __init__(self, project_dir: Path):
-        self.path = project_dir / WORKFLOW_DIR / "task_list.json"
+    Takes `workflow_dir` directly — the directory where task_list.json lives.
+    """
+
+    def __init__(self, workflow_dir: Path):
+        self.path = workflow_dir / "task_list.json"
         self._tasks: list[Task] = []
         if self.path.exists():
             self._load()
@@ -90,8 +90,6 @@ class TaskList:
             task.notes = notes
         return True
 
-    # ── queries ──
-
     def pending(self) -> list[Task]:
         """Return tasks that are not done, sorted by priority then ID."""
         done_ids = {t.id for t in self._tasks if t.passes}
@@ -99,7 +97,6 @@ class TaskList:
         for t in self._tasks:
             if t.passes:
                 continue
-            # skip tasks whose dependencies are not all met
             if any(dep not in done_ids for dep in t.dependencies):
                 continue
             result.append(t)

@@ -1,11 +1,8 @@
 """Core orchestrator: the infinite session loop.
 
-Responsible for:
-- Creating fresh Claude Code SDK sessions
-- Injecting the right prompt (initializer vs worker)
-- Monitoring session completion
-- Auto-continuing to the next session
-- Handling interrupts (Ctrl+C)
+Key design: workflow_dir and cwd are independent.
+- workflow_dir: where task_list.json, progress.md, session_history/ live
+- cwd: where Claude agent reads/writes project files (from config.cwd)
 """
 
 from __future__ import annotations
@@ -35,7 +32,6 @@ from agent_nebula.state import (
     ensure_dirs,
     next_session_number,
     save_session_summary,
-    read_progress,
 )
 from agent_nebula.tasks import TaskList
 from agent_nebula.prompts.initializer import build_initializer_prompt
@@ -45,23 +41,24 @@ console = Console()
 
 
 async def run_single_session(
-    project_dir: Path,
+    cwd: Path,
     config: ProjectConfig,
     prompt: str,
     model: str,
     session_num: int,
 ) -> tuple[str, ResultMessage | None]:
-    """Run a single Claude Code SDK session and return (response_text, result_message)."""
+    """Run a single Claude Code SDK session."""
 
     options = ClaudeCodeOptions(
         model=model,
-        cwd=str(project_dir.resolve()),
+        cwd=str(cwd.resolve()),
         max_turns=config.workflow.max_turns_per_session,
         permission_mode=config.workflow.permission_mode,
         allowed_tools=config.security.allowed_tools,
     )
 
     console.print(f"\n[bold cyan]--- Session {session_num} started (model: {model}) ---[/bold cyan]")
+    console.print(f"[dim]Working directory: {cwd}[/dim]")
 
     response_text = ""
     result_msg: ResultMessage | None = None
@@ -89,7 +86,6 @@ async def run_single_session(
 
 
 def _print_status(task_list: TaskList, session_num: int) -> None:
-    """Print a status table."""
     done, total = task_list.stats()
     table = Table(title=f"Progress after session {session_num}")
     table.add_column("Metric", style="cyan")
@@ -103,14 +99,22 @@ def _print_status(task_list: TaskList, session_num: int) -> None:
 
 
 async def run_workflow(
-    project_dir: Path,
+    workflow_dir: Path,
     spec: str | None = None,
 ) -> None:
-    """Main entry point: run the full init-then-loop workflow."""
+    """Main entry point: run the full init-then-loop workflow.
 
-    ensure_dirs(project_dir)
-    config = _load_or_init_config(project_dir)
-    task_list = TaskList(project_dir)
+    Args:
+        workflow_dir: Directory containing config.yaml, task_list.json, etc.
+        spec: User specification text (used only if no task list exists yet).
+    """
+    ensure_dirs(workflow_dir)
+    config = _load_or_init_config(workflow_dir)
+    cwd = config.resolve_cwd(workflow_dir)
+    task_list = TaskList(workflow_dir)
+
+    console.print(f"[dim]Workflow dir: {workflow_dir}[/dim]")
+    console.print(f"[dim]Working dir:  {cwd}[/dim]")
 
     # Track interrupt requests
     interrupted = False
@@ -135,10 +139,11 @@ async def run_workflow(
             return
 
         console.print(Panel("Phase 1: Initializer Agent", style="bold magenta"))
-        session_num = next_session_number(project_dir)
+        session_num = next_session_number(workflow_dir)
 
         prompt = build_initializer_prompt(
-            project_dir=project_dir,
+            workflow_dir=workflow_dir,
+            cwd=cwd,
             spec=spec,
             project_name=config.name,
             project_type=config.project_type,
@@ -146,18 +151,17 @@ async def run_workflow(
         )
 
         response_text, result_msg = await run_single_session(
-            project_dir=project_dir,
+            cwd=cwd,
             config=config,
             prompt=prompt,
-            model=config.workflow.model_complex,  # use complex model for planning
+            model=config.workflow.model_complex,
             session_num=session_num,
         )
 
-        # Save session summary
-        task_list = TaskList(project_dir)  # reload after agent wrote it
+        task_list = TaskList(workflow_dir)
         done, total = task_list.stats()
         save_session_summary(
-            project_dir=project_dir,
+            workflow_dir=workflow_dir,
             session_num=session_num,
             model=config.workflow.model_complex,
             prompt_excerpt=prompt[:500],
@@ -189,8 +193,7 @@ async def run_workflow(
             console.print("[yellow]Stopping (interrupt received).[/yellow]")
             break
 
-        # Reload task list each iteration
-        task_list = TaskList(project_dir)
+        task_list = TaskList(workflow_dir)
         done, total = task_list.stats()
         pending = task_list.pending()
 
@@ -207,32 +210,31 @@ async def run_workflow(
                 console.print(f"[yellow]Reached max sessions ({max_sessions}). Stopping.[/yellow]")
                 break
 
-        session_num = next_session_number(project_dir)
+        session_num = next_session_number(workflow_dir)
         tasks_before = done
 
-        # Choose model based on task complexity
         next_task = pending[0]
         model = _select_model(config, next_task)
 
         prompt = build_worker_prompt(
-            project_dir=project_dir,
+            workflow_dir=workflow_dir,
+            cwd=cwd,
             config=config,
             session_num=session_num,
         )
 
         response_text, result_msg = await run_single_session(
-            project_dir=project_dir,
+            cwd=cwd,
             config=config,
             prompt=prompt,
             model=model,
             session_num=session_num,
         )
 
-        # Reload and save summary
-        task_list = TaskList(project_dir)
+        task_list = TaskList(workflow_dir)
         done, total = task_list.stats()
         save_session_summary(
-            project_dir=project_dir,
+            workflow_dir=workflow_dir,
             session_num=session_num,
             model=model,
             prompt_excerpt=prompt[:500],
@@ -247,7 +249,6 @@ async def run_workflow(
 
         _print_status(task_list, session_num)
 
-        # Delay before next session (allows Ctrl+C)
         if not interrupted:
             console.print(
                 f"[dim]Next session in {config.workflow.session_delay_seconds}s "
@@ -256,18 +257,18 @@ async def run_workflow(
             await asyncio.sleep(config.workflow.session_delay_seconds)
 
 
-def _load_or_init_config(project_dir: Path) -> ProjectConfig:
-    """Load config.yaml or return a default config (without saving)."""
+def _load_or_init_config(workflow_dir: Path) -> ProjectConfig:
+    """Load config.yaml from workflow_dir, or return default config."""
     try:
-        return ProjectConfig.load(project_dir)
+        return ProjectConfig.load(workflow_dir)
     except FileNotFoundError:
         from agent_nebula.config import detect_project
-        return detect_project(project_dir)
+        cwd = workflow_dir.parent
+        return detect_project(cwd)
 
 
 def _select_model(config: ProjectConfig, task) -> str:
     """Select opus for complex tasks, sonnet for simpler ones."""
-    # analysis, generation with high priority → complex model
     if task.priority <= 1 or task.category in ("analysis", "feature"):
         return config.workflow.model_complex
     return config.workflow.model_simple

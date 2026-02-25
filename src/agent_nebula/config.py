@@ -1,4 +1,11 @@
-"""Project configuration: auto-detection + manual override via config.yaml."""
+"""Project configuration: auto-detection + manual override via config.yaml.
+
+Key concept: workflow_dir vs cwd
+- workflow_dir: where AgentNebula state lives (config.yaml, task_list.json, progress.md, etc.)
+- cwd: where the Claude agent actually works (reads/writes project files)
+These are independent. A workflow in ~/workflows/titus-docs/ can drive Claude
+to work in c:/Work/ProjAI/Claude_Sango/.
+"""
 
 from __future__ import annotations
 
@@ -10,12 +17,11 @@ from typing import Any
 import yaml
 
 
-WORKFLOW_DIR = ".agent-workflow"
+WORKFLOW_SUBDIR = ".agent-nebula"
 CONFIG_FILE = "config.yaml"
 
 # Markers used to auto-detect project type and tech stack.
 _DETECT_RULES: list[tuple[str, list[str], str]] = [
-    # (marker file, tech_stack entries, project_type)
     ("package.json", ["node"], ""),
     ("tsconfig.json", ["typescript"], ""),
     ("angular.json", ["angular"], "web-app"),
@@ -34,13 +40,6 @@ _DETECT_RULES: list[tuple[str, list[str], str]] = [
     ("Dockerfile", ["docker"], ""),
     (".uproject", ["unreal-engine", "c++"], "game"),
 ]
-
-_SRC_GLOBS: dict[str, list[str]] = {
-    "react": ["**/src/**/*.tsx", "**/src/**/*.jsx"],
-    "vue": ["**/*.vue"],
-    "python": ["**/*.py"],
-    "c++": ["**/*.cpp", "**/*.h"],
-}
 
 
 @dataclass
@@ -72,29 +71,43 @@ class VerificationConfig:
 
 @dataclass
 class ProjectConfig:
-    """Full project configuration."""
+    """Full project configuration.
+
+    The `cwd` field is the key addition: it tells the Claude agent which
+    directory to treat as its working directory. This allows the workflow
+    state (task_list.json, progress.md, etc.) to live in a completely
+    separate directory from the project files.
+    """
 
     name: str = ""
-    project_type: str = ""  # web-app, api, cli, library, game, docs, etc.
+    project_type: str = ""
     tech_stack: list[str] = field(default_factory=list)
+    cwd: str = ""  # Claude agent working directory; empty = same as workflow_dir parent
     workflow: WorkflowConfig = field(default_factory=WorkflowConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
     verification: VerificationConfig = field(default_factory=VerificationConfig)
 
+    def resolve_cwd(self, workflow_dir: Path) -> Path:
+        """Return the resolved working directory for Claude sessions."""
+        if self.cwd:
+            return Path(self.cwd).resolve()
+        return workflow_dir.parent.resolve()
+
     # --- persistence ---
 
     @staticmethod
-    def config_path(project_dir: Path) -> Path:
-        return project_dir / WORKFLOW_DIR / CONFIG_FILE
+    def config_path(workflow_dir: Path) -> Path:
+        return workflow_dir / CONFIG_FILE
 
-    def save(self, project_dir: Path) -> None:
-        path = self.config_path(project_dir)
+    def save(self, workflow_dir: Path) -> None:
+        path = self.config_path(workflow_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "project": {
                 "name": self.name,
                 "type": self.project_type,
                 "tech_stack": self.tech_stack,
+                "cwd": self.cwd,
             },
             "workflow": {
                 "model_complex": self.workflow.model_complex,
@@ -119,8 +132,8 @@ class ProjectConfig:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     @classmethod
-    def load(cls, project_dir: Path) -> ProjectConfig:
-        path = cls.config_path(project_dir)
+    def load(cls, workflow_dir: Path) -> ProjectConfig:
+        path = cls.config_path(workflow_dir)
         if not path.exists():
             raise FileNotFoundError(f"No config found at {path}. Run `agent-nebula init` first.")
         with open(path, "r", encoding="utf-8") as f:
@@ -135,6 +148,7 @@ class ProjectConfig:
             name=proj.get("name", ""),
             project_type=proj.get("type", ""),
             tech_stack=proj.get("tech_stack", []),
+            cwd=proj.get("cwd", ""),
         )
         for k, v in wf.items():
             if hasattr(cfg.workflow, k):
@@ -148,20 +162,19 @@ class ProjectConfig:
         return cfg
 
 
-def detect_project(project_dir: Path) -> ProjectConfig:
+def detect_project(cwd: Path) -> ProjectConfig:
     """Auto-detect project type and tech stack from filesystem markers."""
-    cfg = ProjectConfig(name=project_dir.name)
+    cfg = ProjectConfig(name=cwd.name, cwd=str(cwd.resolve()))
     seen_tech: set[str] = set()
 
     for marker, techs, ptype in _DETECT_RULES:
-        if (project_dir / marker).exists():
+        if (cwd / marker).exists():
             for t in techs:
                 seen_tech.add(t)
             if ptype and not cfg.project_type:
                 cfg.project_type = ptype
 
-    # Deeper scan: check for frameworks inside package.json
-    pkg_json = project_dir / "package.json"
+    pkg_json = cwd / "package.json"
     if pkg_json.exists():
         try:
             import json
@@ -183,3 +196,26 @@ def detect_project(project_dir: Path) -> ProjectConfig:
     cfg.tech_stack = sorted(seen_tech)
     cfg.project_type = cfg.project_type or "generic"
     return cfg
+
+
+def resolve_workflow_dir(workflow_dir_arg: str | None, fallback_cwd: str = ".") -> Path:
+    """Resolve the workflow directory from CLI args.
+
+    Priority:
+    1. Explicit -w/--workflow-dir argument
+    2. AGENT_NEBULA_WORKFLOW_DIR environment variable
+    3. <fallback_cwd>/.agent-nebula/
+    """
+    if workflow_dir_arg:
+        p = Path(workflow_dir_arg).resolve()
+        if (p / CONFIG_FILE).exists():
+            return p
+        if (p / WORKFLOW_SUBDIR).exists():
+            return p / WORKFLOW_SUBDIR
+        return p
+
+    env_val = os.environ.get("AGENT_NEBULA_WORKFLOW_DIR")
+    if env_val:
+        return Path(env_val).resolve()
+
+    return Path(fallback_cwd).resolve() / WORKFLOW_SUBDIR

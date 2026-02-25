@@ -1,34 +1,24 @@
-"""Prompt template for the Worker session (Phase 2+).
-
-Each Worker session:
-1. Reads current state (progress.md + task_list.json)
-2. Picks the next pending task
-3. Implements it
-4. Updates task_list.json (passes: true)
-5. Updates progress.md
-6. Optionally commits via git
-"""
+"""Prompt template for the Worker session (Phase 2+)."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from agent_nebula.config import WORKFLOW_DIR, ProjectConfig
+from agent_nebula.config import ProjectConfig
 from agent_nebula.tasks import TaskList
 
 
 def build_worker_prompt(
-    project_dir: Path,
+    workflow_dir: Path,
+    cwd: Path,
     config: ProjectConfig,
     session_num: int,
 ) -> str:
-    workflow_dir = project_dir / WORKFLOW_DIR
     task_list_path = workflow_dir / "task_list.json"
     progress_path = workflow_dir / "progress.md"
 
     # Load current state
-    tl = TaskList(project_dir)
+    tl = TaskList(workflow_dir)
     done_count, total_count = tl.stats()
     pending = tl.pending()
 
@@ -38,32 +28,40 @@ def build_worker_prompt(
         progress_text = progress_path.read_text(encoding="utf-8")
 
     # Format pending tasks
-    pending_section = ""
     if pending:
         pending_lines = []
-        for i, t in enumerate(pending[:10]):  # show at most 10
+        for i, t in enumerate(pending[:10]):
             deps = f" (depends on: {', '.join(t.dependencies)})" if t.dependencies else ""
             pending_lines.append(
                 f"  {i+1}. [{t.id}] (p{t.priority}, {t.category}) {t.description}{deps}"
             )
             if t.notes:
                 pending_lines.append(f"     Note from previous session: {t.notes}")
+            if t.metadata:
+                meta_str = ", ".join(f"{k}={v}" for k, v in t.metadata.items() if isinstance(v, str))
+                if meta_str:
+                    pending_lines.append(f"     Metadata: {meta_str}")
         pending_section = "\n".join(pending_lines)
     else:
-        pending_section = "  (no pending tasks — all work may be complete)"
+        pending_section = "  (no pending tasks -- all work may be complete)"
 
     # Recent session history
     hist_dir = workflow_dir / "session_history"
     recent_sessions = ""
     if hist_dir.exists():
-        session_files = sorted(hist_dir.glob("session_*.md"))[-3:]  # last 3
+        session_files = sorted(hist_dir.glob("session_*.md"))[-3:]
         for sf in session_files:
             recent_sessions += f"\n--- {sf.name} ---\n{sf.read_text(encoding='utf-8')[:800]}\n"
 
     return f"""You are the **Worker Agent** for the AgentNebula workflow system, Session #{session_num}.
 
+## Directory Layout
+- **Working directory (cwd)**: {cwd}
+  This is where you read/write project files.
+- **Workflow state directory**: {workflow_dir}
+  This is where task_list.json and progress.md live.
+
 ## Context
-- **Project directory**: {project_dir}
 - **Project name**: {config.name}
 - **Project type**: {config.project_type}
 - **Tech stack**: {', '.join(config.tech_stack) if config.tech_stack else 'unknown'}
@@ -124,7 +122,7 @@ After completing the task, you MUST update two files:
 ## Rules
 - Complete **exactly ONE task** per session (focus is key)
 - Do NOT modify tasks you're not working on
-- If a task is too large, note this in progress.md — the orchestrator will handle replanning
+- If a task is too large, note this in progress.md -- the orchestrator will handle replanning
 - If you encounter errors, document them in the task's `notes` field and in progress.md
 - Quality over speed: do the task correctly rather than rushing through it
 """

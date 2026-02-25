@@ -1,4 +1,9 @@
-"""State management: .agent-workflow/ directory, progress notes, session history."""
+"""State management: workflow directory, progress notes, session history.
+
+All functions take `workflow_dir` directly — the directory where AgentNebula
+stores its state files. This is independent of the Claude agent's working
+directory (cwd).
+"""
 
 from __future__ import annotations
 
@@ -6,37 +11,32 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from agent_nebula.config import WORKFLOW_DIR
 
-
-def workflow_dir(project_dir: Path) -> Path:
-    return project_dir / WORKFLOW_DIR
-
-
-def ensure_dirs(project_dir: Path) -> None:
-    """Create the .agent-workflow/ directory tree if not present."""
-    wd = workflow_dir(project_dir)
-    (wd / "session_history").mkdir(parents=True, exist_ok=True)
+def ensure_dirs(workflow_dir: Path) -> None:
+    """Create the workflow directory tree if not present."""
+    (workflow_dir / "session_history").mkdir(parents=True, exist_ok=True)
 
 
 # ── progress.md ──────────────────────────────────────────────────────────────
 
-def read_progress(project_dir: Path) -> str:
-    path = workflow_dir(project_dir) / "progress.md"
+def read_progress(workflow_dir: Path) -> str:
+    path = workflow_dir / "progress.md"
     if path.exists():
         return path.read_text(encoding="utf-8")
     return ""
 
 
-def write_progress(project_dir: Path, content: str) -> None:
-    path = workflow_dir(project_dir) / "progress.md"
+def write_progress(workflow_dir: Path, content: str) -> None:
+    path = workflow_dir / "progress.md"
     path.write_text(content, encoding="utf-8")
 
 
 # ── session history ──────────────────────────────────────────────────────────
 
-def next_session_number(project_dir: Path) -> int:
-    hist_dir = workflow_dir(project_dir) / "session_history"
+def next_session_number(workflow_dir: Path) -> int:
+    hist_dir = workflow_dir / "session_history"
+    if not hist_dir.exists():
+        return 1
     existing = list(hist_dir.glob("session_*.md"))
     if not existing:
         return 1
@@ -50,7 +50,7 @@ def next_session_number(project_dir: Path) -> int:
 
 
 def save_session_summary(
-    project_dir: Path,
+    workflow_dir: Path,
     session_num: int,
     model: str,
     prompt_excerpt: str,
@@ -63,18 +63,19 @@ def save_session_summary(
     total_tasks: int,
 ) -> Path:
     """Persist a one-page summary of a completed session."""
-    hist_dir = workflow_dir(project_dir) / "session_history"
+    hist_dir = workflow_dir / "session_history"
     hist_dir.mkdir(parents=True, exist_ok=True)
     path = hist_dir / f"session_{session_num:04d}.md"
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    cost_str = f"${cost_usd:.4f}" if cost_usd is not None else "N/A"
     content = f"""# Session {session_num}
 
 - **Time**: {ts}
 - **Model**: {model}
 - **Duration**: {duration_ms / 1000:.1f}s
 - **Turns**: {num_turns}
-- **Cost**: ${cost_usd:.4f} USD
+- **Cost**: {cost_str} USD
 - **Tasks completed this session**: {tasks_after - tasks_before}
 - **Overall progress**: {tasks_after}/{total_tasks}
 
@@ -92,15 +93,15 @@ def save_session_summary(
 
 # ── spec file ────────────────────────────────────────────────────────────────
 
-def read_spec(project_dir: Path) -> str:
+def read_spec(workflow_dir: Path) -> str:
     """Read the user-provided specification file."""
-    path = workflow_dir(project_dir) / "spec.md"
+    path = workflow_dir / "spec.md"
     if path.exists():
         return path.read_text(encoding="utf-8")
     return ""
 
 
-def write_spec(project_dir: Path, content: str) -> None:
-    path = workflow_dir(project_dir) / "spec.md"
+def write_spec(workflow_dir: Path, content: str) -> None:
+    path = workflow_dir / "spec.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
