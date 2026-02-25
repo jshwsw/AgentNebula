@@ -92,6 +92,25 @@ def build_worker_prompt(
 - Follow the acceptance criteria carefully
 - If the task has metadata (e.g., source file paths), use them
 
+**IMPORTANT for script documentation tasks (category=docs)**:
+When generating _Analysis.md documents, you MUST thoroughly read these sources:
+
+1. **C++ Source Code** (MUST read BOTH files completely):
+   - Header file: `metadata.source_header` (contains data class definition, KFD attributes, enums)
+   - Implementation file: `metadata.source_impl` (contains Execute() logic, helper methods)
+
+2. **Pre-extracted Usage Data** (use this instead of role_XXXXX_full.json):
+   - `Code/TitusEditor/docs/DataGeneration_AI/Workflow/ExistSkillObjRef/ScriptUsageLookup/<ScriptName>.json`
+   - This small file contains: total usage count, per-role counts, sample configurations, and combination patterns with other scripts
+   - **DO NOT** try to read role_XXXXX_full.json files — they are too large
+
+3. **Existing Analysis Examples** (for format reference):
+   - Read at least ONE existing Analysis doc from p0/ or p1/ to match the format exactly
+   - The Analysis document must have all 10 sections with real C++ code snippets and real usage examples
+
+4. **Existing Reference Examples** (for format reference):
+   - Read at least ONE existing Reference doc from p0/ to match the format exactly
+
 ### Step 4: Verify
 - Check that all acceptance criteria are met
 - If there's a test/build command configured, run it
