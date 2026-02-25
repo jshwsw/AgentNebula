@@ -27,6 +27,12 @@ def build_worker_prompt(
     if progress_path.exists():
         progress_text = progress_path.read_text(encoding="utf-8")
 
+    # Read spec (task-specific execution instructions)
+    spec_path = workflow_dir / "spec.md"
+    spec_text = ""
+    if spec_path.exists():
+        spec_text = spec_path.read_text(encoding="utf-8")
+
     # Format pending tasks
     if pending:
         pending_lines = []
@@ -91,25 +97,7 @@ def build_worker_prompt(
 - Execute the task as described
 - Follow the acceptance criteria carefully
 - If the task has metadata (e.g., source file paths), use them
-
-**IMPORTANT for script documentation tasks (category=docs)**:
-When generating _Analysis.md documents, you MUST thoroughly read these sources:
-
-1. **C++ Source Code** (MUST read BOTH files completely):
-   - Header file: `metadata.source_header` (contains data class definition, KFD attributes, enums)
-   - Implementation file: `metadata.source_impl` (contains Execute() logic, helper methods)
-
-2. **Pre-extracted Usage Data** (use this instead of role_XXXXX_full.json):
-   - `Code/TitusEditor/docs/DataGeneration_AI/Workflow/ExistSkillObjRef/ScriptUsageLookup/<ScriptName>.json`
-   - This small file contains: total usage count, per-role counts, sample configurations, and combination patterns with other scripts
-   - **DO NOT** try to read role_XXXXX_full.json files — they are too large
-
-3. **Existing Analysis Examples** (for format reference):
-   - Read at least ONE existing Analysis doc from p0/ or p1/ to match the format exactly
-   - The Analysis document must have all 10 sections with real C++ code snippets and real usage examples
-
-4. **Existing Reference Examples** (for format reference):
-   - Read at least ONE existing Reference doc from p0/ to match the format exactly
+- **Read the Spec below** for task-specific instructions on how to execute this type of task
 
 ### Step 4: Verify
 - Check that all acceptance criteria are met
@@ -144,4 +132,7 @@ After completing the task, you MUST update two files:
 - If a task is too large, note this in progress.md -- the orchestrator will handle replanning
 - If you encounter errors, document them in the task's `notes` field and in progress.md
 - Quality over speed: do the task correctly rather than rushing through it
+
+## Task Execution Guide (from spec)
+{spec_text if spec_text else "(no spec provided — follow task descriptions and acceptance criteria)"}
 """
