@@ -44,8 +44,8 @@ _DETECT_RULES: list[tuple[str, list[str], str]] = [
 
 @dataclass
 class WorkflowConfig:
-    model_complex: str = "claude-opus-4-20250514"
-    model_simple: str = "claude-sonnet-4-20250514"
+    model_complex: str = "opus"
+    model_simple: str = "sonnet"
     max_sessions: int = -1  # -1 = infinite
     session_delay_seconds: int = 3
     auto_commit: bool = True

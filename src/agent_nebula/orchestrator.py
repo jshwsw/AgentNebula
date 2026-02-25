@@ -8,9 +8,15 @@ Key design: workflow_dir and cwd are independent.
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
 import sys
 from pathlib import Path
+
+# Allow launching Claude Code sessions from within an existing session.
+# The SDK spawns a subprocess — this is safe as long as sessions don't
+# share the same working directory simultaneously.
+os.environ.pop("CLAUDECODE", None)
 
 from rich.console import Console
 from rich.panel import Panel
@@ -63,24 +69,34 @@ async def run_single_session(
     response_text = ""
     result_msg: ResultMessage | None = None
 
-    async for message in query(prompt=prompt, options=options):
-        if isinstance(message, AssistantMessage):
-            for block in message.content:
-                if isinstance(block, TextBlock):
-                    response_text += block.text
-                    console.print(block.text, end="")
-                elif isinstance(block, ToolUseBlock):
-                    console.print(f"\n[dim][Tool: {block.name}][/dim]", end="")
-
-        elif isinstance(message, UserMessage):
-            if isinstance(message.content, list):
+    try:
+        async for message in query(prompt=prompt, options=options):
+            if isinstance(message, AssistantMessage):
                 for block in message.content:
-                    if isinstance(block, ToolResultBlock) and block.is_error:
-                        err_text = str(block.content)[:200] if block.content else "unknown error"
-                        console.print(f"\n[red][Error] {err_text}[/red]")
+                    if isinstance(block, TextBlock):
+                        response_text += block.text
+                        console.print(block.text, end="")
+                    elif isinstance(block, ToolUseBlock):
+                        console.print(f"\n[dim][Tool: {block.name}][/dim]", end="")
 
-        elif isinstance(message, ResultMessage):
-            result_msg = message
+            elif isinstance(message, UserMessage):
+                if isinstance(message.content, list):
+                    for block in message.content:
+                        if isinstance(block, ToolResultBlock) and block.is_error:
+                            err_text = str(block.content)[:200] if block.content else "unknown error"
+                            console.print(f"\n[red][Error] {err_text}[/red]")
+
+            elif isinstance(message, ResultMessage):
+                result_msg = message
+                break  # Session complete — exit the message loop
+    except Exception as e:
+        # The SDK may raise after the session ends (e.g., subprocess cleanup).
+        # If we already have a ResultMessage, this is safe to ignore.
+        if result_msg is not None:
+            console.print(f"\n[dim](post-session cleanup: {type(e).__name__})[/dim]")
+        else:
+            console.print(f"\n[red]Session error: {e}[/red]")
+            raise
 
     return response_text, result_msg
 
