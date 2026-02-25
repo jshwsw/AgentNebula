@@ -7,18 +7,68 @@ Usage:
     python tools/run_workflow.py --port 9000                  # custom dashboard port
 
 The script:
-  1. Unsets CLAUDECODE env var (allows running from within Claude Code)
-  2. Locates .agent-nebula/ in the given directory
-  3. Starts the orchestrator with dashboard at http://localhost:8765
+  1. Stops any existing AgentNebula process and frees the dashboard port
+  2. Unsets CLAUDECODE env var (allows running from within Claude Code)
+  3. Starts the orchestrator with dashboard
 """
 
 import argparse
 import os
+import platform
+import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 WORKFLOW_SUBDIR = ".agent-nebula"
+
+
+def _kill_existing(port: int) -> None:
+    """Stop any existing AgentNebula/uvicorn processes and free the port."""
+    system = platform.system()
+
+    # Kill known process names
+    if system == "Windows":
+        # Find PID on port
+        try:
+            result = subprocess.run(
+                ["netstat", "-ano"], capture_output=True, text=True, timeout=5,
+            )
+            for line in result.stdout.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    pid = line.strip().split()[-1]
+                    print(f"[AgentNebula] Stopping existing process on port {port} (PID {pid})")
+                    subprocess.run(
+                        ["taskkill", "/F", "/PID", pid],
+                        capture_output=True, timeout=5,
+                    )
+        except Exception:
+            pass
+    else:
+        # Unix: kill by port
+        try:
+            result = subprocess.run(
+                ["lsof", "-ti", f":{port}"], capture_output=True, text=True, timeout=5,
+            )
+            for pid in result.stdout.strip().split():
+                if pid:
+                    print(f"[AgentNebula] Stopping existing process on port {port} (PID {pid})")
+                    subprocess.run(["kill", "-9", pid], capture_output=True, timeout=5)
+        except Exception:
+            pass
+
+    # Wait for port to be free
+    for _ in range(10):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.bind(("0.0.0.0", port))
+            s.close()
+            return  # Port is free
+        except OSError:
+            time.sleep(1)
+
+    print(f"[WARN] Port {port} may still be in use")
 
 
 def main():
@@ -42,6 +92,9 @@ def main():
         print(f"[ERROR] No {WORKFLOW_SUBDIR}/ found in {project_dir}")
         print(f"  Run first:  python tools/setup_workflow.py {project_dir}")
         sys.exit(1)
+
+    # Stop existing processes on the dashboard port
+    _kill_existing(args.port)
 
     # Build the command
     cmd = [
