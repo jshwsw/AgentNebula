@@ -125,11 +125,7 @@ After completing the task, you MUST update two files:
 - Include: what was done, any issues encountered, suggestions for next session
 - Keep previous content intact
 
-### Step 6: Git commit (if appropriate)
-- If meaningful work was done, create a git commit with a descriptive message
-- Format: `[AgentNebula S{session_num:04d}] <brief description of what was done>`
-
-### Step 7: End session
+### Step 6: End session
 - Report what was accomplished
 - If you encountered blockers, note them clearly in progress.md
 
