@@ -450,6 +450,20 @@ async def run_workflow(
                 # SDK cancel scope may leak and cancel this sleep — safe to ignore
                 await asyncio.sleep(0.1)  # Brief yield to let cleanup finish
 
+    # Keep dashboard alive after workflow completes/stops
+    if not no_dashboard:
+        _dash_session(phase="idle")
+        console.print(
+            f"\n[bold green]Workflow finished. Dashboard still running at "
+            f"http://localhost:{dashboard_port}[/bold green]"
+        )
+        console.print("[dim]Press Ctrl+C to shut down dashboard.[/dim]")
+        try:
+            while True:
+                await asyncio.sleep(3600)
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            console.print("\n[dim]Dashboard shut down.[/dim]")
+
 
 def _load_or_init_config(workflow_dir: Path) -> ProjectConfig:
     """Load config.yaml from workflow_dir, or return default config."""
