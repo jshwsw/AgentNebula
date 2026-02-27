@@ -15,8 +15,8 @@ Generates two documents per script type:
 | `config.yaml` | Workflow configuration — models, sessions, permissions |
 | `spec.md` | Task execution instructions — how to generate each doc (read by worker agent) |
 | `task_list_sample.json` | First 5 tasks from the full 152-task list |
-| `progress.md` | Session progress notes |
-| `HANDOFF.md` | Complete handoff document for agent continuity |
+| `progress.md` | Summary overview — agent overwrites each session (≤300 lines) |
+| `discoveries.md` | Auto-archived session findings — orchestrator appends before each session |
 | `tools/extract_script_usage.py` | Pre-extracts per-script usage data from role analysis files |
 
 ## Key Design Patterns
