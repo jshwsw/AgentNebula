@@ -37,6 +37,8 @@ from claude_code_sdk import (
     ThinkingBlock,
 )
 
+import re as _re
+
 from agent_nebula.config import ProjectConfig
 from agent_nebula.state import (
     ensure_dirs,
@@ -46,6 +48,43 @@ from agent_nebula.state import (
 from agent_nebula.tasks import TaskList
 from agent_nebula.prompts.initializer import build_initializer_prompt
 from agent_nebula.prompts.worker import build_worker_prompt
+
+
+def _archive_progress(workflow_dir: Path) -> None:
+    """Archive key sections from progress.md into discoveries.md before the agent overwrites it."""
+    progress_path = workflow_dir / "progress.md"
+    archive_path = workflow_dir / "discoveries.md"
+
+    if not progress_path.exists():
+        return
+
+    content = progress_path.read_text(encoding="utf-8").strip()
+    if not content:
+        return
+
+    # Extract "Last Session" section
+    last_session = ""
+    m = _re.search(
+        r"^## Last Session.*?\n(.*?)(?=^## |\Z)",
+        content, _re.MULTILINE | _re.DOTALL,
+    )
+    if m:
+        last_session = m.group(0).strip()
+
+    if not last_session:
+        return  # Nothing meaningful to archive
+
+    # Append to discoveries.md
+    separator = "\n\n---\n\n"
+    if archive_path.exists():
+        existing = archive_path.read_text(encoding="utf-8")
+    else:
+        existing = "# Discoveries Archive\n\nAuto-archived session findings from progress.md.\n"
+
+    with open(archive_path, "a", encoding="utf-8") as f:
+        if not existing.endswith("\n"):
+            f.write("\n")
+        f.write(f"{separator}{last_session}\n")
 
 console = Console()
 
@@ -172,6 +211,7 @@ async def run_single_session(
     response_text = ""
     result_msg: ResultMessage | None = None
     msg_index = 0
+    model_confirmed = False
 
     try:
         with open(jsonl_path, "w", encoding="utf-8") as jsonl_file:
@@ -196,6 +236,18 @@ async def run_single_session(
 
                 # Broadcast to dashboard
                 _dash_broadcast_msg(session_num, serialized)
+
+                # Log the actual model from the first assistant response
+                if isinstance(message, AssistantMessage) and not model_confirmed:
+                    actual_model = getattr(message, "model", "")
+                    if actual_model:
+                        model_confirmed = True
+                        if actual_model != model and actual_model != model.split("[")[0]:
+                            console.print(f"\n[bold yellow]⚠ Model mismatch: requested={model}, actual={actual_model}[/bold yellow]")
+                            _dash_log(f"⚠ Model mismatch: requested={model}, actual={actual_model}")
+                        else:
+                            console.print(f"\n[bold green]✓ Model confirmed: {actual_model}[/bold green]")
+                            _dash_log(f"✓ Model confirmed: {actual_model}")
 
                 # Console output + log
                 if isinstance(message, AssistantMessage):
@@ -403,6 +455,9 @@ async def run_workflow(
             model=model,
             started_at=time.time(),
         )
+
+        # Archive current progress.md before agent overwrites it
+        _archive_progress(workflow_dir)
 
         prompt = build_worker_prompt(
             workflow_dir=workflow_dir,

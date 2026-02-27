@@ -50,7 +50,8 @@ while has_pending_tasks:
 │   ├── config.yaml          Project config + models       │
 │   ├── spec.md              What to do (input)            │
 │   ├── task_list.json       Tasks with status (DAG)       │
-│   ├── progress.md          Free-form notes               │
+│   ├── progress.md          Summary overview (≤300 lines) │
+│   ├── discoveries.md       Auto-archived findings log    │
 │   ├── session_history/     Markdown summaries            │
 │   └── session_messages/    Full JSONL recordings         │
 └──────────────────────────────────────────────────────────┘
@@ -63,6 +64,10 @@ while has_pending_tasks:
 **One task per session** — Each session focuses on exactly one task. This prevents context pollution and makes progress atomic. If a session fails, only one task is affected.
 
 **File-based state** — All state lives in plain files (JSON, Markdown, JSONL). No database, no external services. Easy to inspect, edit, version control, or transfer between machines.
+
+**progress.md as summary** — The agent **overwrites** `progress.md` each session with a fixed-structure summary (≤300 lines): overall stats, last session findings, accumulated key discoveries, known issues, and next task. This keeps the file human-readable and fully injected into the prompt without truncation.
+
+**discoveries.md as archive** — Before each session, the orchestrator automatically extracts the "Last Session" section from `progress.md` and appends it to `discoveries.md`. This ensures no session findings are lost when the agent overwrites `progress.md`. The agent treats `discoveries.md` as read-only.
 
 **Model selection** — Complex tasks (priority 0-1, analysis, features) use `model_complex` (Opus). Simpler tasks use `model_simple` (Sonnet). Configurable per-workflow.
 
@@ -248,7 +253,8 @@ AgentNebula/
 │       └── worker.py        # Prompt for Phase 2 (task execution)
 ├── tools/
 │   ├── setup_workflow.py    # Initialize .agent-nebula/ in any project
-│   └── run_workflow.py      # Launch orchestrator + dashboard
+│   ├── run_workflow.py      # Launch orchestrator + dashboard
+│   └── stop_workflow.py     # Stop running workflow and free port
 ├── docs/
 │   ├── QUICKSTART.md        # Setup and usage guide
 │   ├── TASK_FORMAT.md       # task_list.json field reference

@@ -69,10 +69,26 @@ def setup(project_dir: Path, name: str | None = None) -> None:
         d = workflow_dir / subdir
         d.mkdir(exist_ok=True)
 
-    # Create empty progress.md
+    # Create progress.md with summary template
     progress = workflow_dir / "progress.md"
     if not progress.exists():
-        progress.write_text("# Progress Notes\n\n", encoding="utf-8")
+        project_name = name or project_dir.resolve().name
+        progress.write_text(
+            f"# Progress: {project_name}\n\n"
+            "## Overall\n"
+            "- Completed: 0 / 0 tasks (0%)\n"
+            "- Sessions so far: 0\n"
+            "- Current phase: Not started\n\n"
+            "## Last Session\n"
+            "- (no sessions yet)\n\n"
+            "## Key Discoveries\n"
+            "- (none yet)\n\n"
+            "## Known Issues & TODOs\n"
+            "- (none yet)\n\n"
+            "## Next Up\n"
+            "- (waiting for task list generation)\n",
+            encoding="utf-8",
+        )
         print(f"[OK] Created progress.md")
 
     print(f"""

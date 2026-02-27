@@ -27,14 +27,10 @@ def build_worker_prompt(
     done_count, total_count = tl.stats()
     pending = tl.pending()
 
-    # Read progress notes (truncate to last 2000 chars to keep prompt under Windows CLI limit)
+    # Read progress summary (should be short — agent overwrites it each session)
     progress_text = ""
     if progress_path.exists():
-        full_progress = progress_path.read_text(encoding="utf-8")
-        if len(full_progress) > 2000:
-            progress_text = f"(truncated — full file at {progress_path})\n...\n" + full_progress[-2000:]
-        else:
-            progress_text = full_progress
+        progress_text = progress_path.read_text(encoding="utf-8")
 
     # Format pending tasks
     if pending:
@@ -71,6 +67,7 @@ def build_worker_prompt(
   This is where you read/write project files.
 - **Workflow state directory**: {workflow_dir}
   This is where task_list.json and progress.md live.
+  `discoveries.md` in this directory is an auto-archived log of all past session findings (read-only, do NOT write to it).
 
 ## Context
 - **Project name**: {config.name}
@@ -79,8 +76,8 @@ def build_worker_prompt(
 - **Overall progress**: {done_count}/{total_count} tasks completed
 - **Session number**: {session_num}
 
-## Current Progress Notes
-{progress_text if progress_text else "(no progress notes yet)"}
+## Progress Summary
+{progress_text if progress_text else "(no progress summary yet)"}
 
 ## Recent Session History
 {recent_sessions if recent_sessions else "(first worker session)"}
@@ -118,10 +115,35 @@ After completing the task, you MUST update two files:
 - Add any notes for future sessions in the `notes` field
 - Write the file back (preserve all other tasks unchanged)
 
-**b) Update progress.md** (`{progress_path}`):
-- Add a section for this session at the top
-- Include: what was done, any issues encountered, suggestions for next session
-- Keep previous content intact
+**b) Overwrite progress.md** (`{progress_path}`):
+- This is a **summary file** (NOT an append log). **Overwrite the entire file** each session.
+- Keep it under 300 lines. Use this structure:
+
+```markdown
+# Progress: {{project_name}}
+
+## Overall
+- Completed: X / Y tasks (Z%)
+- Sessions so far: N
+- Current phase: [describe what stage the project is in]
+
+## Last Session (#N)
+- Task: [task ID and name]
+- Result: [completed / blocked / partial]
+- Key findings: [2-5 sentences summarizing what was learned]
+
+## Key Discoveries
+[Accumulate important cross-task findings, patterns, and insights discovered so far.
+Keep this section growing across sessions — preserve valuable discoveries from previous progress.md.
+Remove outdated or superseded entries. Aim for 10-30 bullet points.]
+
+## Known Issues & TODOs
+[Unresolved problems, recurring blockers, quality concerns, or improvement ideas.
+Mark resolved items as done or remove them.]
+
+## Next Up
+- [next task ID and brief description]
+```
 
 ### Step 6: End session
 - Report what was accomplished
@@ -133,6 +155,7 @@ After completing the task, you MUST update two files:
 - If a task is too large, note this in progress.md -- the orchestrator will handle replanning
 - If you encounter errors, document them in the task's `notes` field and in progress.md
 - Quality over speed: do the task correctly rather than rushing through it
+- When using the Task tool to spawn sub-agents, ALWAYS set `model="sonnet"`. Do NOT use the default (haiku) model for sub-agents.
 """
 
     return prompt
